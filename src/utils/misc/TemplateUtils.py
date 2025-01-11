@@ -15,7 +15,8 @@ class TemplateUtils:
             r"Navy:\s*(?P<navy>[^\n]+)\s*"
             r"Siege:\s*(?P<siege>[^\n]+)\s*"
             r"Avoid:\s*(?P<avoid>[^\n]+)\s*"
-            r"Announcement Message:\s*(?P<message>.+)\s*"
+            r"Arrival Message:\s*(?P<arrival>.+)\s*"
+            r"Departure Message:\s*(?P<departure>.+)\s*"
         )
 
         match = pattern.search(template)
@@ -31,7 +32,8 @@ class TemplateUtils:
                 "navy": match.group("navy").split(", "),
                 "siege": match.group("siege").split(", "),
                 "avoid": match.group("avoid").split(", "),
-                "message": match.group("message")
+                "arrival": match.group("arrival"),
+                "departure": match.group("departure")
             }
         else:
             raise ValueError("The provided template does not match the expected format.")

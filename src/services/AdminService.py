@@ -4,6 +4,7 @@ from utils.sheets.GoogleSheetUtils import GoogleSheetUtils
 class AdminService:
     def __init__(self):
         self.sheet_utils = GoogleSheetUtils()
+        self.google_sheet_utils = GoogleSheetUtils()
 
     def update_google_sheets(self):
         sheet_names = ["status", "Movements"]
