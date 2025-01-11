@@ -15,5 +15,23 @@ class MovementController(commands.Cog):
         else:
             await ctx.send("**Success! Good Boy :)**")
 
+    @commands.has_permissions(administrator=True)
+    @commands.command()
+    async def movements(self, ctx):
+        movements = self.movement_service.retrieve_all_movements()
+        if not movements:
+            await ctx.send("**Something funky, idk?**")
+        else:
+            await ctx.send(movements)
+
+    @commands.has_permissions(administrator=True)
+    @commands.command()
+    async def retrieve(self, ctx, uid):
+        movement = self.movement_service.retrieve_movement(uid)
+        if not movement:
+            await ctx.send("**You sure thats a movement pookie? 8==)**")
+        else:
+            await ctx.send(embed=movement)
+
 async def setup(bot):
     await bot.add_cog(MovementController(bot))
