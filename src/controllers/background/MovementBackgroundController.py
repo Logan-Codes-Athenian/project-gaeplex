@@ -24,9 +24,9 @@ class MovementBackgroundController(commands.Cog):
             return
 
         for row in sheet_values[1:]:
-            movement_uid, player, movement_type, commanders, army, navy, siege, intent, path, current_hex, minutes_per_hex, minutes_since_last_hex, message = row
+            uid, player, movement_type, commanders, army, navy, siege, intent, path, current_hex, minutes_per_hex, minutes_since_last_hex, message = row
             
-            self.movements[movement_uid] = {
+            self.movements[uid] = {
                 'player': player,
                 'movement_type': movement_type,
                 'commanders': commanders,
@@ -59,11 +59,11 @@ class MovementBackgroundController(commands.Cog):
         
         # Add any new movements from the sheet to in-memory storage
         for row in sheet_values[1:]:
-            movement_uid = row[0]
+            uid = row[0]
             print(f"row:\n{row}")
-            if movement_uid not in self.movements:
+            if uid not in self.movements:
                 path = row[8].split(",")  # Convert path string to list
-                self.movements[movement_uid] = {
+                self.movements[uid] = {
                     'player': row[1],
                     'movement_type': row[2],
                     'commanders': row[3],
@@ -80,7 +80,7 @@ class MovementBackgroundController(commands.Cog):
         
         # Update in-memory movements and prepare data for the sheet
         updated_data = []
-        for movement_uid, movement in self.movements.items():
+        for uid, movement in self.movements.items():
             path = movement['path']
             current_hex = movement['current_hex']
             minutes_per_hex = movement['minutes_per_hex']
@@ -98,18 +98,18 @@ class MovementBackgroundController(commands.Cog):
                     current_hex = path[current_hex_index + 1]
                     minutes_since_last_hex = 0
                 else:
-                    await self.complete_movement(movement_uid)
+                    await self.complete_movement(uid)
                     return
             
             # Update the movement in memory
-            self.movements[movement_uid].update({
+            self.movements[uid].update({
                 'current_hex': current_hex,
                 'minutes_since_last_hex': minutes_since_last_hex,
             })
 
             # Prepare updated data for the sheet
             updated_data.append([
-                movement_uid,
+                uid,
                 movement['player'],
                 movement['movement_type'],
                 movement['commanders'],
@@ -132,8 +132,8 @@ class MovementBackgroundController(commands.Cog):
         # Write the merged data back to the sheet
         self.local_sheet_utils.update_sheet_by_name("Movements", [sheet_values[0]] + updated_data)
 
-    async def complete_movement(self, movement_uid):
-        data = self.movements[movement_uid]
+    async def complete_movement(self, uid):
+        data = self.movements[uid]
         destination = await self.search_map_for_destination(data['current_hex'])
         
         # Resolve the channel
@@ -148,9 +148,9 @@ class MovementBackgroundController(commands.Cog):
 
         # Send the movement completion message
         if data['message'] == "None":
-            await channel.send(f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. They intend to: {data['intent']}")
+            await channel.send(f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. They intend to: {data['intent']}\nMovement UID: {uid}")
         else:
-            await channel.send(f"- {data['message']}")
+            await channel.send(f"- {data['message']}\nMovement UID: {uid}")
 
         # Extract numeric user ID
         try:
@@ -177,7 +177,8 @@ class MovementBackgroundController(commands.Cog):
                     "Starting Hex ID",
                     "Destination",
                     "Path of Hex IDs",
-                    "Minutes Per Hex"
+                    "Minutes Per Hex",
+                    "Movement UID"
                 ],
                 [
                     f"Movement from {data['path'][0]} to {destination}.",
@@ -190,19 +191,20 @@ class MovementBackgroundController(commands.Cog):
                     destination,
                     data['path'],
                     data['minutes_per_hex'],
+                    uid
                 ],
             ),
         )
 
         # Remove the movement from memory
-        if movement_uid in self.movements:
-            del self.movements[movement_uid]
+        if uid in self.movements:
+            del self.movements[uid]
 
         # Update the sheet data
         sheet_values = self.local_sheet_utils.get_sheet_by_name("Movements")
         updated_rows = [sheet_values[0]]  # Keep the header row
         for row in sheet_values[1:]:
-            if row[0] != movement_uid:
+            if row[0] != uid:
                 updated_rows.append(row)
 
         self.local_sheet_utils.update_sheet_by_name("Movements", updated_rows)

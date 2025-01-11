@@ -56,7 +56,7 @@ class MovementService:
         siege = ', '.join(movement.get("siege")) if movement.get("siege") else "None"
         path_str = ', '.join(path) if path else "None"
 
-        success = await self.announce_departure(ctx, movement, path, minutes_per_tile)
+        success = await self.announce_departure(ctx, movement, movement_uid, path, minutes_per_tile)
         if not success:
             return False
 
@@ -68,7 +68,7 @@ class MovementService:
             movement.get("arrival")]
         )
     
-    async def announce_departure(self, ctx, movement, path, minutes_per_tile):
+    async def announce_departure(self, ctx, movement, uid, path, minutes_per_tile):
         # Resolve the channel
         channel_id = settings.MovementsChannel
         channel = self.bot.get_channel(channel_id)
@@ -82,9 +82,9 @@ class MovementService:
         message = movement.get("departure")
         # Send the movement completion message
         if message == "None":
-            await channel.send(f"- {'Ships' if movement.get('navy') != 'None' else 'Men'} are spotted departing {movement.get('origin')}")
+            await channel.send(f"- {'Ships' if movement.get('navy') != 'None' else 'Men'} are spotted departing {movement.get('origin')}\nMovement UID: {uid}")
         else:
-            await channel.send(f"- {message}")
+            await channel.send(f"- {message}\nMovement UID: {uid}")
 
         # Extract numeric user ID
         try:
@@ -111,7 +111,8 @@ class MovementService:
                     "Origin",
                     "Destination",
                     "Path of Hex IDs",
-                    "Minutes Per Hex"
+                    "Minutes Per Hex",
+                    "Movement UID"
                 ],
                 [
                     f"Movement from {movement.get('origin')} to {movement.get('destination')}.",
@@ -123,7 +124,8 @@ class MovementService:
                     movement.get("origin"),
                     movement.get("destination"),
                     path,
-                    minutes_per_tile
+                    minutes_per_tile,
+                    uid
                 ],
             ),
         )
