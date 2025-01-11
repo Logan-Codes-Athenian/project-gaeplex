@@ -42,6 +42,10 @@ class MovementBackgroundController(commands.Cog):
 
     @tasks.loop(minutes=1)  # This will run every minute
     async def update_movements(self):
+        is_paused = self.is_paused()
+        if is_paused: # If true, game is paused, do anything.
+            return
+        
         # Fetch the latest sheet data before making updates
         sheet_values = self.local_sheet_utils.get_sheet_by_name("Movements")
         if not sheet_values:
@@ -196,7 +200,7 @@ class MovementBackgroundController(commands.Cog):
 
         self.local_sheet_utils.update_sheet_by_name("Movements", updated_rows)
     
-    async def search_map_for_destination(self, destination):
+    def search_map_for_destination(self, destination):
         # Iterate through each row in the map data
         for row in self.map:
             if row["Hex"] == destination:
@@ -206,6 +210,20 @@ class MovementBackgroundController(commands.Cog):
         
         # If no Holding Name is found, return the hex ID
         return destination
+    
+    def is_paused(self):
+        sheet_values = self.local_sheet_utils.get_sheet_by_name("Status")
+        if not sheet_values:
+            print("Error: Could not retrieve data for 'Status'.")
+            return True
+        
+        for row in sheet_values:
+            if row[0] == "Game Status":
+                if row[1] == "Unpaused":
+                    return False
+                else:
+                    return True
+        return True
 
 async def setup(bot):
     await bot.add_cog(MovementBackgroundController(bot))

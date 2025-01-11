@@ -38,7 +38,7 @@ async def on_ready():
 async def download_sheets():
     google_sheet_utils = GoogleSheetUtils()
     # Download sheets.
-    sheet_names = ["Movements", "Map"]
+    sheet_names = ["Status", "Movements", "Map"]
 
     # Ensure the directory exists
     directory = "src/sheets"

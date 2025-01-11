@@ -15,5 +15,23 @@ class AdminController(commands.Cog):
         else:
             await ctx.send(f"Backup Failed :(")
 
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def pause(self, ctx):
+        success = self.admin_service.change_game_status("Paused")
+        if success:
+            await ctx.send(f"Pause Successful :)")
+        else:
+            await ctx.send(f"Pause Failed :(")
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def unpause(self, ctx):
+        success = self.admin_service.change_game_status("Unpaused")
+        if success:
+            await ctx.send(f"Unpause Successful :)")
+        else:
+            await ctx.send(f"Unpause Failed :(")
+
 async def setup(bot):
     await bot.add_cog(AdminController(bot))
