@@ -7,7 +7,7 @@ class AdminService:
         self.google_sheet_utils = GoogleSheetUtils()
 
     def update_google_sheets(self):
-        sheet_names = ["status", "Movements"]
+        sheet_names = ["Status", "Movements"]
     
         for sheet in sheet_names:
             # Open the local CSV file and read its contents
