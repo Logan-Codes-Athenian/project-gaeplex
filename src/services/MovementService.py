@@ -26,15 +26,17 @@ class MovementService:
             movement = self.template_utils.parse_movement_template(template)
         except ValueError:
             return False
-        
-        print('-'*150)
+
+        print('-' * 150)
         print(movement)
 
         movement_type = "army" if movement.get("navy") == ['None'] else "fleet"
 
         # Pathfind.
-        path = self.pathfinding_utils.retrieve_movement_path(movement_type, movement.get("origin"), 
-                                                             movement.get("destination"), movement.get("avoid"))
+        path = self.pathfinding_utils.retrieve_movement_path(
+            movement_type, movement.get("origin"),
+            movement.get("destination"), movement.get("avoid")
+        )
 
         # Determine minutes per tile based on composition.
         if movement.get("navy"):
@@ -44,10 +46,18 @@ class MovementService:
 
         movement_uid = f"{movement.get('player')}_{int(time.time())}"
 
+        # Prepare list fields as comma-separated strings
+        commanders = ', '.join(movement.get("commanders")) if movement.get("commanders") else "None"
+        army = ', '.join(movement.get("army")) if movement.get("army") else "None"
+        navy = ', '.join(movement.get("navy")) if movement.get("navy") else "None"
+        siege = ', '.join(movement.get("siege")) if movement.get("siege") else "None"
+        path_str = ', '.join(path) if path else "None"
+
         # Create Movement in Sheets.
         return self.local_sheet_utils.write_to_row(
             "Movements",
-            [movement_uid, movement.get("player"), movement_type, movement.get("army"), movement.get("navy"), movement.get("siege"), 
-             movement.get("intent"), path, path[0], minutes_per_tile, 0]
-             )
-        
+            [movement_uid, movement.get("player"), movement_type, commanders, army, navy, siege,
+            movement.get("intent"), path_str, path[0] if path else "None", minutes_per_tile, 0]
+        )
+
+            
