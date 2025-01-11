@@ -47,7 +47,7 @@ class MovementService:
         else:
             minutes_per_tile = 2 if movement.get("siege") is None else 3
 
-        movement_uid = f"{movement.get('player')}_{int(time.time())}"
+        movement_uid = f"{movement.get('origin')}_{int(time.time())}"
 
         # Prepare list fields as comma-separated strings
         commanders = ', '.join(movement.get("commanders")) if movement.get("commanders") else "None"
