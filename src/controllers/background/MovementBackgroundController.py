@@ -200,7 +200,7 @@ class MovementBackgroundController(commands.Cog):
 
         self.local_sheet_utils.update_sheet_by_name("Movements", updated_rows)
     
-    def search_map_for_destination(self, destination):
+    async def search_map_for_destination(self, destination):
         # Iterate through each row in the map data
         for row in self.map:
             if row["Hex"] == destination:
