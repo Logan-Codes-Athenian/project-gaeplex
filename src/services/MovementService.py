@@ -57,7 +57,8 @@ class MovementService:
         return self.local_sheet_utils.write_to_row(
             "Movements",
             [movement_uid, movement.get("player"), movement_type, commanders, army, navy, siege,
-            movement.get("intent"), path_str, path[0] if path else "None", minutes_per_tile, 0]
+            movement.get("intent"), path_str, path[0] if path else "None", minutes_per_tile, 0,
+            movement.get("message")]
         )
 
             

@@ -24,11 +24,12 @@ class MovementBackgroundController(commands.Cog):
             return
 
         for row in sheet_values[1:]:
-            movement_uid, player, movement_type, army, navy, siege, intent, path, current_hex, minutes_per_hex, minutes_since_last_hex = row
+            movement_uid, player, movement_type, commanders, army, navy, siege, intent, path, current_hex, minutes_per_hex, minutes_since_last_hex, message = row
             
             self.movements[movement_uid] = {
                 'player': player,
                 'movement_type': movement_type,
+                'commanders': commanders,
                 'army': army,
                 'navy': navy,
                 'siege': siege,
@@ -36,7 +37,8 @@ class MovementBackgroundController(commands.Cog):
                 'path': path,
                 'current_hex': current_hex,
                 'minutes_per_hex': int(minutes_per_hex),
-                'minutes_since_last_hex': int(minutes_since_last_hex)
+                'minutes_since_last_hex': int(minutes_since_last_hex),
+                'message': message
             }
 
 
@@ -73,6 +75,7 @@ class MovementBackgroundController(commands.Cog):
                     'current_hex': row[9],
                     'minutes_per_hex': int(row[10]),
                     'minutes_since_last_hex': int(row[11]),
+                    'message': row[12]
                 }
         
         # Update in-memory movements and prepare data for the sheet
@@ -118,6 +121,7 @@ class MovementBackgroundController(commands.Cog):
                 current_hex,
                 minutes_per_hex,
                 minutes_since_last_hex,
+                movement['message']
             ])
         
         # Merge updated data with any rows from the sheet that aren't in memory
@@ -143,7 +147,10 @@ class MovementBackgroundController(commands.Cog):
                 return
 
         # Send the movement completion message
-        await channel.send(f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. They intend to: {data['intent']}")
+        if data['message'] == "None":
+            await channel.send(f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. They intend to: {data['intent']}")
+        else:
+            await channel.send(f"- {data['message']}")
 
         # Extract numeric user ID
         try:
