@@ -82,7 +82,7 @@ class MovementService:
         message = movement.get("departure")
         # Send the movement completion message
         if message == "None":
-            await channel.send(f"- {'Ships' if movement.get("navy") != 'None' else 'Men'} are spotted departing {movement.get("origin")}")
+            await channel.send(f"- {'Ships' if movement.get('navy') != 'None' else 'Men'} are spotted departing {movement.get('origin')}")
         else:
             await channel.send(f"- {message}")
 
@@ -91,7 +91,7 @@ class MovementService:
             user_id = int(re.sub(r'[^\d]', '', movement.get("player")))
             user = await self.bot.fetch_user(user_id)
         except ValueError:
-            print(f"Error: Invalid user ID format in data['player']: {movement.get("player")}")
+            print(f"Error: Invalid user ID format in data['player']: {movement.get('player')}")
             return False
         except discord.errors.HTTPException as e:
             print(f"Error: Unable to fetch user with ID {user_id}. Exception: {e}")
@@ -114,7 +114,7 @@ class MovementService:
                     "Minutes Per Hex"
                 ],
                 [
-                    f"Movement from {movement.get("origin")} to {movement.get("destination")}.",
+                    f"Movement from {movement.get('origin')} to {movement.get('destination')}.",
                     movement.get("intent"),
                     movement.get("commanders"),
                     movement.get("army"),
@@ -128,4 +128,5 @@ class MovementService:
             ),
         )
         return True
-            
+
+                
