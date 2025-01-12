@@ -244,5 +244,62 @@ class MovementService:
                 return False
             
         return False
+    
+    def retreat_movement(self, uid):
+        # Load movements data from Movements.csv
+        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
+        
+        # Extract headers and data rows
+        headers = movements[0]
+        data = movements[1:]
+        
+        # Identify column indices based on provided headers
+        uid_index = headers.index("Movement UID")
+        current_hex_index = headers.index("Current Hex")
+        path_index = headers.index("Path")
+        minutes_since_last_hex_index = headers.index("Minutes since last Hex")
+        intent_index = headers.index("Intent")
+        message_index = headers.index("Message")
 
-                    
+        # Flag to check if the movement was found and updated
+        movement_found = False
+
+        # Updated movements
+        updated_data = []
+
+        for row in data:
+            if row[uid_index] == uid:
+                # Found the movement
+                path = row[path_index].split(",")  # Split path into individual hexes
+                current_hex = row[current_hex_index]  # Current hex
+                
+                # Find the index of the current hex in the path
+                if current_hex in path:
+                    current_hex_index_in_path = path.index(current_hex)
+                    # Create a reversed path starting from the current hex
+                    row[intent_index] = "Retreat"
+                    new_path = path[current_hex_index_in_path::-1]  # Reverse up to and including current hex
+                    row[path_index] = ",".join(new_path)  # Update the path
+                    row[minutes_since_last_hex_index] = "0"  # Reset time to 0
+                    row[message_index] = "None"
+                    movement_found = True
+                else:
+                    print(f"Error: Current Hex {current_hex} not found in Path for UID {uid}")
+                    return False
+            
+            updated_data.append(row)
+
+        # If the movement is not found, raise an exception
+        if not movement_found:
+            print(f"Movement with UID {uid} not found in Movements.csv")
+            return False
+
+        # Write updated data back to the sheet
+        self.local_sheet_utils.update_sheet_by_name(
+            "Movements",
+            [headers] + updated_data
+        )
+        return True
+
+    def cancel_movement(self, uid):
+        pass

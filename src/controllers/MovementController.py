@@ -33,5 +33,23 @@ class MovementController(commands.Cog):
         else:
             await ctx.send(embed=movement)
 
+    @commands.has_permissions(administrator=True)
+    @commands.command()
+    async def retreat(self, ctx, uid):
+        success = self.movement_service.retreat_movement(uid)
+        if not success:
+            await ctx.send("**You gone fucked up cuh**")
+        else:
+            await ctx.send("**Successfully Retreated Movement :)**")
+
+    @commands.has_permissions(administrator=True)
+    @commands.command()
+    async def cancel(self, ctx, uid):
+        success = self.movement_service.cancel_movement(uid)
+        if not success:
+            await ctx.send("**You gone fucked up cuh**")
+        else:
+            await ctx.send("**Cancelled Movement :)**")
+
 async def setup(bot):
     await bot.add_cog(MovementController(bot))

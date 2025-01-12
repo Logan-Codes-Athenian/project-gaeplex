@@ -1,4 +1,4 @@
-import discord
+import asyncio
 
 class CollectionUtils:
 
@@ -19,6 +19,6 @@ class CollectionUtils:
             except ValueError:
                 await ctx.send(f"Invalid input. Expected a value of type {return_type.__name__}.")
                 return None
-        except discord.TimeoutError:
+        except asyncio.TimeoutError:  # Corrected exception type
             await ctx.send("Timed out waiting for a response.")
             return None
