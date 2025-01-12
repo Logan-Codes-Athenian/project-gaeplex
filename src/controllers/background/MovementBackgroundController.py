@@ -128,6 +128,8 @@ class MovementBackgroundController(commands.Cog):
         for row in sheet_values[1:]:
             if row[0] not in self.movements:
                 updated_data.append(row)
+
+        await self.check_for_army_collision(updated_data)
         
         # Write the merged data back to the sheet
         self.local_sheet_utils.update_sheet_by_name("Movements", [sheet_values[0]] + updated_data)
@@ -233,6 +235,34 @@ class MovementBackgroundController(commands.Cog):
                 else:
                     return True
         return True
+    
+    async def check_for_army_collision(self, updated_data):
+        # Check for armies on the same hex and notify GameMaster
+        hex_army_map = {}  # Map hex IDs to lists of army UIDs
+        for row in updated_data:
+            uid = row[0]
+            current_hex = row[9]  # Column index for current_hex in updated_data
+            if current_hex not in hex_army_map:
+                hex_army_map[current_hex] = []
+            hex_army_map[current_hex].append(uid)
+
+        # Notify GameMaster about armies on the same hex
+        for hex_id, army_uids in hex_army_map.items():
+            if len(army_uids) > 1:  # Only notify if multiple armies are on the same hex
+                await self.notify_gm_army_collision(hex_id, army_uids)
+
+    async def notify_gm_army_collision(self, hex_id, army_uids):
+        # Fetch the GameMaster's user and send a notification
+        id = settings.GamemasterID
+        try:
+            user = await self.bot.fetch_user(id)
+            await user.send(
+                f"**Army Collision Notification**\n"
+                f"- Multiple armies found on tile {hex_id}!\n"
+                f"Movement UIDs: {', '.join(army_uids)}"
+            )
+        except discord.errors.HTTPException as e:
+            print(f"Error: Unable to fetch user with ID {id}. Exception: {e}")
 
 async def setup(bot):
     await bot.add_cog(MovementBackgroundController(bot))
