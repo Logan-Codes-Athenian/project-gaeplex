@@ -82,9 +82,9 @@ class MovementService:
         message = movement.get("departure")
         # Send the movement completion message
         if message == "None":
-            await channel.send(f"- {'Ships' if movement.get('navy') != 'None' else 'Men'} are spotted departing {movement.get('origin')}\nMovement UID: {uid}")
+            await channel.send(f"- {'Ships' if movement.get('navy') != 'None' else 'Men'} are spotted departing {movement.get('origin')} || {uid} ||")
         else:
-            await channel.send(f"- {message}\nMovement UID: {uid}")
+            await channel.send(f"- {message} || {uid} ||")
 
         # Extract numeric user ID
         try:
@@ -97,38 +97,41 @@ class MovementService:
             print(f"Error: Unable to fetch user with ID {user_id}. Exception: {e}")
             return False
 
-        # Notify the player
-        await user.send(
-            "**Your movement has been queued Pookie. It will begin on Unpause. :)**",
-            embed=self.embed_utils.set_info_embed_from_list(
-                [
-                    "Embed Title",
-                    "Intent",
-                    "Commanders",
-                    "Army",
-                    "Navy",
-                    "Siege",
-                    "Origin",
-                    "Destination",
-                    "Path of Hex IDs",
-                    "Minutes Per Hex",
-                    "Movement UID"
-                ],
-                [
-                    f"Movement from {movement.get('origin')} to {movement.get('destination')}.",
-                    movement.get("intent"),
-                    movement.get("commanders"),
-                    movement.get("army"),
-                    movement.get("navy"),
-                    movement.get("siege"),
-                    movement.get("origin"),
-                    movement.get("destination"),
-                    path,
-                    minutes_per_tile,
-                    uid
-                ],
-            ),
-        )
+        try:
+            # Notify the player
+            await user.send(
+                "**Your movement has been queued Pookie. It will begin on Unpause. :)**",
+                embed=self.embed_utils.set_info_embed_from_list(
+                    [
+                        "Embed Title",
+                        "Intent",
+                        "Commanders",
+                        "Army",
+                        "Navy",
+                        "Siege",
+                        "Origin",
+                        "Destination",
+                        "Path of Hex IDs",
+                        "Minutes Per Hex",
+                        "Movement UID"
+                    ],
+                    [
+                        f"Movement from {movement.get('origin')} to {movement.get('destination')}.",
+                        movement.get("intent"),
+                        movement.get("commanders"),
+                        movement.get("army"),
+                        movement.get("navy"),
+                        movement.get("siege"),
+                        movement.get("origin"),
+                        movement.get("destination"),
+                        path,
+                        minutes_per_tile,
+                        uid
+                    ],
+                ),
+            )
+        except discord.errors.Forbidden:
+            print("Can't DM user.")
         return True
     
     def retrieve_all_movements(self):

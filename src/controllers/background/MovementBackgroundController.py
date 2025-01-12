@@ -150,9 +150,9 @@ class MovementBackgroundController(commands.Cog):
 
         # Send the movement completion message
         if data['message'] == "None":
-            await channel.send(f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. They intend to: {data['intent']}\nMovement UID: {uid}")
+            await channel.send(f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. They intend to: {data['intent']} || {uid} ||")
         else:
-            await channel.send(f"- {data['message']}\nMovement UID: {uid}")
+            await channel.send(f"- {data['message']} || {uid} ||")
 
         # Extract numeric user ID
         try:
@@ -165,38 +165,41 @@ class MovementBackgroundController(commands.Cog):
             print(f"Error: Unable to fetch user with ID {user_id}. Exception: {e}")
             return
 
-        # Notify the player
-        await user.send(
-            "**Your movement is finished pookie :)**",
-            embed=self.embed_utils.set_info_embed_from_list(
-                [
-                    "Embed Title",
-                    "Intent",
-                    "Commanders",
-                    "Army",
-                    "Navy",
-                    "Siege",
-                    "Starting Hex ID",
-                    "Destination",
-                    "Path of Hex IDs",
-                    "Minutes Per Hex",
-                    "Movement UID"
-                ],
-                [
-                    f"Movement from {data['path'][0]} to {destination}.",
-                    data['intent'],
-                    data['commanders'],
-                    data['army'],
-                    data['navy'],
-                    data['siege'],
-                    data['path'][0],
-                    destination,
-                    data['path'],
-                    data['minutes_per_hex'],
-                    uid
-                ],
-            ),
-        )
+        try: 
+            # Notify the player
+            await user.send(
+                "**Your movement is finished pookie :)**",
+                embed=self.embed_utils.set_info_embed_from_list(
+                    [
+                        "Embed Title",
+                        "Intent",
+                        "Commanders",
+                        "Army",
+                        "Navy",
+                        "Siege",
+                        "Starting Hex ID",
+                        "Destination",
+                        "Path of Hex IDs",
+                        "Minutes Per Hex",
+                        "Movement UID"
+                    ],
+                    [
+                        f"Movement from {data['path'][0]} to {destination}.",
+                        data['intent'],
+                        data['commanders'],
+                        data['army'],
+                        data['navy'],
+                        data['siege'],
+                        data['path'][0],
+                        destination,
+                        data['path'],
+                        data['minutes_per_hex'],
+                        uid
+                    ],
+                ),
+            )
+        except discord.errors.Forbidden:
+            print("Can't DM user.")
 
         # Remove the movement from memory
         if uid in self.movements:
@@ -258,8 +261,8 @@ class MovementBackgroundController(commands.Cog):
             user = await self.bot.fetch_user(id)
             await user.send(
                 f"**Army Collision Notification**\n"
-                f"- Multiple armies found on tile {hex_id}!\n"
-                f"Movement UIDs: {', '.join(army_uids)}"
+                f"``Multiple armies found on tile {hex_id}!``\n"
+                f"Movement UIDs:\n- {', '.join(army_uids)}"
             )
         except discord.errors.HTTPException as e:
             print(f"Error: Unable to fetch user with ID {id}. Exception: {e}")
