@@ -56,7 +56,7 @@ class MovementService:
         siege = ', '.join(movement.get("siege")) if movement.get("siege") else "None"
         path_str = ', '.join(path) if path else "None"
 
-        success = await self.announce_departure(ctx, movement, movement_uid, path, minutes_per_tile)
+        success = await self.announce_departure(ctx, movement, movement_uid, path, minutes_per_tile, navy)
         if not success:
             return False
 
@@ -68,7 +68,7 @@ class MovementService:
             movement.get("arrival")]
         )
     
-    async def announce_departure(self, ctx, movement, uid, path, minutes_per_tile):
+    async def announce_departure(self, ctx, movement, uid, path, minutes_per_tile, navy):
         # Resolve the channel
         channel_id = settings.MovementsChannel
         channel = self.bot.get_channel(channel_id)
@@ -82,7 +82,7 @@ class MovementService:
         message = movement.get("departure")
         # Send the movement completion message
         if message == "None":
-            await channel.send(f"- {'Ships' if movement.get('navy') != 'None' else 'Men'} are spotted departing {movement.get('origin')} || {uid} ||")
+            await channel.send(f"- {'Ships' if navy != 'None' else 'Men'} are spotted departing {movement.get('origin')} || {uid} ||")
         else:
             await channel.send(f"- {message} || {uid} ||")
 
