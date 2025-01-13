@@ -20,5 +20,5 @@ class CollectionUtils:
                 await ctx.send(f"Invalid input. Expected a value of type {return_type.__name__}.")
                 return None
         except asyncio.TimeoutError:  # Corrected exception type
-            await ctx.send("Timed out waiting for a response.")
+            await ctx.send("**Timed out waiting for a response. Stop being a retarded and gae :)**")
             return None
