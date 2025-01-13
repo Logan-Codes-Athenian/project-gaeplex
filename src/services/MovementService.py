@@ -4,6 +4,7 @@ from utils.misc.EmbedUtils import EmbedUtils
 from utils.pathfinding.PathfindingUtils import PathfindingUtils
 from utils.misc.TemplateUtils import TemplateUtils
 from utils.misc.CollectionUtils import CollectionUtils
+import asyncio.TimeoutError
 import settings as settings
 import discord
 import time
@@ -20,10 +21,16 @@ class MovementService:
         self.collection_utils = CollectionUtils()
 
     async def create_template_movement(self, ctx):
-        template = await self.collection_utils.ask_question(
-            ctx, self.bot,
-            "**Send me the Movement Template now Pookie, Grrrr.**", str
-        )
+        try: 
+            template = await self.collection_utils.ask_question(
+                ctx, self.bot,
+                "**Send me the Movement Template now Pookie, Grrrr.**", str
+            )
+        except asyncio.TimeoutError:
+            print("Timeout")
+            return False
+        except ValueError:
+            return False
 
         try:
             movement = self.template_utils.parse_movement_template(template)
