@@ -34,8 +34,8 @@ class MovementBackgroundController(commands.Cog):
                 'navy': navy,
                 'siege': siege,
                 'intent': intent,
-                'path': path,
-                'current_hex': current_hex,
+                'path': [hex.strip() for hex in path.split(",")],  # Clean path here
+                'current_hex': current_hex.strip(),  # Clean current_hex here
                 'minutes_per_hex': int(minutes_per_hex),
                 'minutes_since_last_hex': int(minutes_since_last_hex),
                 'message': message
@@ -48,41 +48,19 @@ class MovementBackgroundController(commands.Cog):
         if is_paused: # If true, game is paused, do anything.
             return
         
-        # Fetch the latest sheet data before making updates
+                # Fetch the latest sheet data before making updates
         sheet_values = self.local_sheet_utils.get_sheet_by_name("Movements")
         if not sheet_values:
             print("Error: Could not retrieve data for 'Movements'.")
             return
-        
-        # Create a set of movement UIDs from the sheet
-        sheet_uids = {row[0] for row in sheet_values[1:]}
-        
-        # Add any new movements from the sheet to in-memory storage
-        for row in sheet_values[1:]:
-            uid = row[0]
-            print(f"row:\n{row}")
-            if uid not in self.movements:
-                path = row[8].split(",")  # Convert path string to list
-                self.movements[uid] = {
-                    'player': row[1],
-                    'movement_type': row[2],
-                    'commanders': row[3],
-                    'army': row[4],
-                    'navy': row[5],
-                    'siege': row[6],
-                    'intent': row[7],
-                    'path': path,
-                    'current_hex': row[9],
-                    'minutes_per_hex': int(row[10]),
-                    'minutes_since_last_hex': int(row[11]),
-                    'message': row[12]
-                }
+
+        self.update_in_memory_data_from_sheet(sheet_values)
         
         # Update in-memory movements and prepare data for the sheet
         updated_data = []
         for uid, movement in self.movements.items():
-            path = movement['path']
-            current_hex = movement['current_hex']
+            path = [hex.strip() for hex in movement['path']]  # Clean path
+            current_hex = movement['current_hex'].strip()  # Clean current_hex
             minutes_per_hex = movement['minutes_per_hex']
             minutes_since_last_hex = movement['minutes_since_last_hex']
             
@@ -238,6 +216,38 @@ class MovementBackgroundController(commands.Cog):
                 else:
                     return True
         return True
+    
+    def update_in_memory_data_from_sheet(self, sheet_values):                
+        for row in sheet_values[1:]:
+            # Add any new movements from the sheet to in-memory storage
+            uid = row[0]
+            if uid not in self.movements:
+                path = row[8].split(",")  # Convert path string to list
+                self.movements[uid] = {
+                    'player': row[1],
+                    'movement_type': row[2],
+                    'commanders': row[3],
+                    'army': row[4],
+                    'navy': row[5],
+                    'siege': row[6],
+                    'intent': row[7],
+                    'path': path,
+                    'current_hex': row[9].strip(), # Clean on Load
+                    'minutes_per_hex': int(row[10]),
+                    'minutes_since_last_hex': int(row[11]),
+                    'message': row[12]
+                }
+            # Check sheet for retreat intents. Compare UID to in memory. 
+            # If intents are different, update in memory with retreat intent data.
+            intent = row[7]
+            if intent == "Retreat":
+                new_path = row[8]
+                if isinstance(new_path, str):
+                    new_path = [hex.strip() for hex in new_path.split(',')] # Clean Path on load
+                self.movements[uid]['path'] = new_path
+                self.movements[uid]['intent'] = intent
+                self.movements[uid]['minutes_since_last_hex'] = 0
+                self.movements[uid]['message'] = row[12]
     
     async def check_for_army_collision(self, updated_data):
         # Check for armies on the same hex and notify GameMaster
