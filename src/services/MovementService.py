@@ -302,4 +302,43 @@ class MovementService:
         return True
 
     def cancel_movement(self, uid):
-        pass
+        try:
+            # Load movements data from Movements.csv
+            movements = self.local_sheet_utils.get_sheet_by_name("Movements")
+            
+            # Extract headers and data rows
+            headers = movements[0]
+            data = movements[1:]
+            
+            # Identify column indices based on provided headers
+            uid_index = headers.index("Movement UID")
+
+            # Track if the UID is found
+            uid_found = False
+
+            # Filter out rows matching the specified uid
+            updated_data = []
+            for row in data:
+                if row[uid_index] == uid:
+                    uid_found = True
+                else:
+                    updated_data.append(row)
+            
+            # If the UID was not found, provide feedback or raise an exception
+            if not uid_found:
+                print(f"Warning: Movement UID {uid} not found.")
+                return False
+            
+            # Write updated data back to the sheet
+            self.local_sheet_utils.update_sheet_by_name(
+                "Movements",
+                [headers] + updated_data
+            )
+            return True
+        
+        except ValueError as e:
+            print(f"Error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False

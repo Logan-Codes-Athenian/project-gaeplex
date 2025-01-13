@@ -218,9 +218,13 @@ class MovementBackgroundController(commands.Cog):
         return True
     
     def update_in_memory_data_from_sheet(self, sheet_values):                
+        # Update existing movements and add new movements from the sheet
+        current_uids_in_sheet = set()
         for row in sheet_values[1:]:
-            # Add any new movements from the sheet to in-memory storage
             uid = row[0]
+            current_uids_in_sheet.add(uid)
+            
+            # Add new movements or update existing ones
             if uid not in self.movements:
                 path = row[8].split(",")  # Convert path string to list
                 self.movements[uid] = {
@@ -231,23 +235,32 @@ class MovementBackgroundController(commands.Cog):
                     'navy': row[5],
                     'siege': row[6],
                     'intent': row[7],
-                    'path': path,
-                    'current_hex': row[9].strip(), # Clean on Load
+                    'path': [hex.strip() for hex in path],  # Clean path here
+                    'current_hex': row[9].strip(),  # Clean current_hex here
                     'minutes_per_hex': int(row[10]),
                     'minutes_since_last_hex': int(row[11]),
                     'message': row[12]
                 }
-            # Check sheet for retreat intents. Compare UID to in memory. 
-            # If intents are different, update in memory with retreat intent data.
-            intent = row[7]
-            if intent == "Retreat":
-                new_path = row[8]
-                if isinstance(new_path, str):
-                    new_path = [hex.strip() for hex in new_path.split(',')] # Clean Path on load
-                self.movements[uid]['path'] = new_path
-                self.movements[uid]['intent'] = intent
-                self.movements[uid]['minutes_since_last_hex'] = 0
-                self.movements[uid]['message'] = row[12]
+            else:
+                # Update existing movement if intent changes to "Retreat"
+                intent = row[7]
+                if intent == "Retreat":
+                    new_path = row[8]
+                    if isinstance(new_path, str):
+                        new_path = [hex.strip() for hex in new_path.split(",")]  # Clean path
+                    self.movements[uid]['path'] = new_path
+                    self.movements[uid]['intent'] = intent
+                    self.movements[uid]['minutes_since_last_hex'] = 0
+                    self.movements[uid]['message'] = row[12]
+
+        # Remove deleted movements
+        self.remove_deleted_movements(current_uids_in_sheet)
+
+    def remove_deleted_movements(self, current_uids_in_sheet):
+        uids_to_delete = set(self.movements.keys()) - current_uids_in_sheet
+        for uid in uids_to_delete:
+            print(f"Removing deleted movement from memory: {uid}")
+            del self.movements[uid]
     
     async def check_for_army_collision(self, updated_data):
         # Check for armies on the same hex and notify GameMaster
