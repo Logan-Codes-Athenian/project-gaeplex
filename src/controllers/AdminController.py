@@ -17,6 +17,15 @@ class AdminController(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
+    async def download(self, ctx):
+        success = self.admin_service.download_google_sheets()
+        if success:
+            await ctx.send(f"Download Successful :)")
+        else:
+            await ctx.send(f"Download Failed :(")
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
     async def pause(self, ctx):
         success = self.admin_service.change_game_status("Paused")
         if success:

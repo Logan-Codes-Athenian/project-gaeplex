@@ -1,3 +1,4 @@
+import os
 import csv
 from utils.sheets.GoogleSheetUtils import GoogleSheetUtils
 
@@ -25,6 +26,25 @@ class AdminService:
         # All Sheets Backup as expected.
         return True
     
+    def download_google_sheets(self):
+        # Download sheets.
+        sheet_names = ["Status", "Movements"]
+
+        # Ensure the directory exists
+        directory = "src/sheets"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        
+        for sheet in sheet_names:
+            data = self.google_sheet_utils.get_sheet_by_name(sheet)
+            if data:
+                print(f"Downloading {sheet}.")
+                with open(f"{directory}/{sheet}.csv", mode='w', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerows(data)
+        
+        return True
+        
     def change_game_status(self, status):
         try:
             # Read the CSV file
