@@ -174,6 +174,47 @@ class MovementService:
         # Combine all rows into a single string with newline separators
         return "\n".join(movement_info)
     
+    def retrieve_user_movements(self, id):
+        print(id)
+        movement_info = []
+
+        # Retrieve data from the "Movements" sheet
+        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
+        
+        # Check if data was retrieved successfully
+        if not movements:
+            return False
+        
+        # Extract header and rows
+        header = movements[0]  # The first row is the header
+        rows = movements[1:]   # Remaining rows contain data
+
+        # Get indices for the required columns
+        try:
+            uid_index = header.index("Movement UID")
+            player_index = header.index("Player")
+            path_index = header.index("Path")
+            intent_index = header.index("Intent")
+        except ValueError:
+            return False
+
+        # Iterate through the rows and extract relevant information
+        for row in rows:
+            player = row[player_index]
+            print(player)
+            if player == id:
+                try:
+                    movement_uid = row[uid_index]
+                    path = row[path_index]
+                    intent = row[intent_index]
+                    # Format and append the movement information
+                    movement_info.append(f"UID: {movement_uid}, Player: {player}, Path: [{path}], Intent: {intent}")
+                except IndexError:
+                    print(f"Warning: Skipped a row due to missing data - {row}")
+
+        # Combine all rows into a single string with newline separators
+        return "\n".join(movement_info)
+    
     def retrieve_movement(self, uid):
         # Retrieve data from the "Movements" sheet
         movements = self.local_sheet_utils.get_sheet_by_name("Movements")
@@ -208,6 +249,79 @@ class MovementService:
         for row in rows:
             try:
                 if row[uid_index] == uid:
+                    # Format and return the movement embed
+                    return self.embed_utils.set_info_embed_from_list(
+                        [
+                            "Embed Title",
+                            "Player",
+                            "Movement Type",
+                            "Intent",
+                            "Commanders",
+                            "Army",
+                            "Navy",
+                            "Siege",
+                            "Path of Hex IDs",
+                            "Current Hex ID",
+                            "Minutes Per Hex",
+                            "Minutes Since Last Hex",
+                            "Arrival Message"
+                        ],
+                        [
+                            f"Retrieved Movement: {uid}",
+                            row[player_index],
+                            row[movement_type_index],
+                            row[intent_index],
+                            row[commanders_index],
+                            row[army_index],
+                            row[navy_index],
+                            row[siege_index],
+                            row[path_index],
+                            row[current_hex_index],
+                            row[minutes_per_hex_index],
+                            row[minutes_since_last_hex_index],
+                            row[message_index]
+                        ],
+                    )
+            except IndexError:
+                print(f"Error: missing data - {row}")
+                return False
+            
+        return False
+    
+    def retrieve_user_movement(self, uid, id):
+        # Retrieve data from the "Movements" sheet
+        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
+        
+        # Check if data was retrieved successfully
+        if not movements:
+            return False
+        
+        # Extract header and rows
+        header = movements[0]  # The first row is the header
+        rows = movements[1:]   # Remaining rows contain data
+
+        # Get indices for the required columns
+        try:
+            uid_index = header.index("Movement UID")
+            player_index = header.index("Player")
+            movement_type_index = header.index("Movement Type")
+            commanders_index = header.index("Commanders")
+            army_index = header.index("Army")
+            navy_index = header.index("Navy")
+            siege_index = header.index("Siege")
+            intent_index = header.index("Intent")
+            path_index = header.index("Path")
+            current_hex_index = header.index("Current Hex")
+            minutes_per_hex_index = header.index("Minutes per Hex")
+            minutes_since_last_hex_index = header.index("Minutes since last Hex")
+            message_index = header.index("Message")
+        except ValueError:
+            return False
+
+        # Iterate through the rows and extract relevant information
+        for row in rows:
+            try:
+                if row[uid_index] == uid and row[player_index] == id:
                     # Format and return the movement embed
                     return self.embed_utils.set_info_embed_from_list(
                         [

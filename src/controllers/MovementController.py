@@ -15,19 +15,25 @@ class MovementController(commands.Cog):
         else:
             await ctx.send("**Success! Good Boy :)**")
 
-    @commands.has_permissions(administrator=True)
     @commands.command()
     async def movements(self, ctx):
-        movements = self.movement_service.retrieve_all_movements()
+        if ctx.author.guild_permissions.administrator:
+            movements = self.movement_service.retrieve_all_movements()
+        else:
+            movements = self.movement_service.retrieve_user_movements(f"<@{ctx.message.author.id}>")
+
         if not movements:
-            await ctx.send("**Something funky, idk?**")
+            await ctx.send("**ruh roh raggy, something was fucked up bruh**")
         else:
             await ctx.send(movements)
 
-    @commands.has_permissions(administrator=True)
     @commands.command()
     async def retrieve(self, ctx, uid):
-        movement = self.movement_service.retrieve_movement(uid)
+        if ctx.author.guild_permissions.administrator:
+            movement = self.movement_service.retrieve_movement(uid)
+        else:
+            movement = self.movement_service.retrieve_user_movement(uid, f"<@{ctx.message.author.id}>")
+
         if not movement:
             await ctx.send("**You sure thats a movement pookie? 8==)**")
         else:
