@@ -458,3 +458,86 @@ class MovementService:
         except Exception as e:
             print(f"Unexpected error: {e}")
             return False
+        
+    async def retrieve_path(self, ctx, origin, destination, avoid):
+        movement_type = await self.collection_utils.ask_question(
+            ctx, self.bot,
+            "Is the movement for an **army** or a **fleet**?", str
+        )
+
+        siege = await self.collection_utils.ask_question(
+            ctx, self.bot,
+            "Does the movement have any Siege? **(y/n)**", str
+        )
+
+        # If either question wasn't answered properly
+        if not movement_type or siege is None:
+            await ctx.send("Are you retarded? I even highlighted the right answers :sob:")
+            return None, None  # Return a tuple with `None` values
+
+        # Determine minutes per tile based on composition
+        if movement_type == "fleet":
+            minutes_per_tile = 1
+        else:
+            minutes_per_tile = 2 if siege.lower() in ["n", "no"] else 3
+
+        # Retrieve the movement path
+        path = self.pathfinding_utils.retrieve_movement_path(
+            movement_type, origin,
+            destination, avoid
+        )
+
+        if not path:  # If pathfinding failed, return empty path
+            return [], 0
+
+        # Return the path and total time
+        return path, len(path) * minutes_per_tile
+
+    def retrieve_hex_info(self, hex):
+        # Retrieve data from the "Map" sheet
+        map = self.local_sheet_utils.get_sheet_by_name("Map")
+        
+        # Check if data was retrieved successfully
+        if not map:
+            return False
+        
+        # Extract header and rows
+        header = map[0]  # The first row is the header
+        rows = map[1:]   # Remaining rows contain data
+
+        # Get indices for the required columns
+        try:
+            hex_index = header.index("Hex")
+            terrain_index = header.index("Terrain")
+            holding_index = header.index("Holding Name")
+            road_index = header.index("Road")
+            river_index = header.index("River")
+        except ValueError:
+            return False
+
+        # Iterate through the rows and extract relevant information
+        for row in rows:
+            try:
+                if row[hex_index] == hex:
+                    # Format and return the movement embed
+                    return self.embed_utils.set_info_embed_from_list(
+                        [
+                            "Embed Title",
+                            "Terrain",
+                            "Holding Name",
+                            "Road Present",
+                            "River Present"
+                        ],
+                        [
+                            f"Retrieved Hex info for {hex}",
+                            row[terrain_index],
+                            row[holding_index],
+                            row[road_index],
+                            row[river_index]
+                        ],
+                    )
+            except IndexError:
+                print(f"Error: missing data - {row}")
+                return False
+            
+        return False

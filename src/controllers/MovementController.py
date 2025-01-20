@@ -57,5 +57,23 @@ class MovementController(commands.Cog):
         else:
             await ctx.send("**Cancelled Movement :)**")
 
+    @commands.command()
+    async def path(self, ctx, origin, destination):
+        path, time = await self.movement_service.retrieve_path(ctx, origin, destination, None)
+        if not path:
+            await ctx.send("**Stop being retarded, bad player, bad! :(**")
+        else:
+            await ctx.send(f"**Fastest Path and ETC for {origin} -> {destination}**\n"
+                        f"*Fastest Path: {path}*\n"
+                        f"*Estimated Time to Completion: {time} minutes*")
+
+    @commands.command()
+    async def hex(self, ctx, hex):
+        info = self.movement_service.retrieve_hex_info(hex)
+        if not info:
+            await ctx.send("**I don't think that's a hex baka!**")
+        else:
+            await ctx.send(embed = info)
+
 async def setup(bot):
     await bot.add_cog(MovementController(bot))

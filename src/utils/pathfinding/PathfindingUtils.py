@@ -75,21 +75,28 @@ class PathfindingUtils:
     def terrain_movement_cost(self, movement_type, hex_data):
         terrain = hex_data['Terrain']
         has_road = hex_data.get('Road', False)
+        has_river = hex_data.get('River', False)
         has_holding = hex_data.get('Holding', False)
 
         if movement_type == "army":
+            if has_river and not has_road and not has_holding:
+                # If tile has river and no road or holding, it is impassable.
+                return float('inf')
             if terrain == "Mountains":
                 # Mountain is passable if it has either a Road or a Holding
                 return 3 if has_road or has_holding else float('inf')
             if terrain == "Sea":
                 return float('inf')  # Sea is impassable for army
             # Cost for other terrains
-            terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3}
+            terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3, 
+                             "Forest": 3, "Dense Forest": 4, "Snow": 3,
+                             "Snowy Forest": 4, "Plains": 1, "Coast": 2, 
+                             "Island": 1}
             return terrain_costs.get(terrain, 1)  # Default cost for other terrains
 
-        if movement_type == "fleet" and terrain == "Sea":
+        if movement_type == "fleet" and terrain == "Sea" or terrain == "Coast" or terrain == "Island":
             return 1
-        return float('inf')  # Non-sea is impassable by ship
+        return float('inf')  # Non-sea/coast/island is impassable by ship
 
     # Get the neighbors of a hex, considering avoid list
     def get_neighbors(self, movement_type, hex_id, hex_map, avoid_hexes):

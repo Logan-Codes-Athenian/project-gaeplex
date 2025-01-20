@@ -1,9 +1,13 @@
-import os
 import csv
+import os
+import urllib.parse
 import discord
 from discord.ext import commands
+# from pymongo.mongo_client import MongoClient
 from utils.sheets.GoogleSheetUtils import GoogleSheetUtils
 import settings as settings
+
+"""Mongodb Migration in slow progress."""
 
 intents = discord.Intents.all()
 
@@ -21,6 +25,7 @@ async def on_ready():
         activity=discord.Game(os.environ.get("BOTSTATUS", settings.BotStatus))
     )
 
+    # await connect_mongodb()
     await download_sheets()
     
     # Load all cogs
@@ -34,6 +39,25 @@ async def on_ready():
             print(f"Failed to load cog {cog}\n{exc}")
     
     print("Bot is ready!")
+
+"""
+async def connect_mongodb():
+    username = urllib.parse.quote_plus(settings.username)
+    password = urllib.parse.quote_plus(settings.password)
+    
+    uri = f"mongodb+srv://{username}:{password}@gaeplex.kbw9i.mongodb.net/?retryWrites=true&w=majority&appName=gaeplex"
+
+    # Create a new client and connect to the server
+    mongo_client = MongoClient(uri)
+
+    # Send a ping to confirm a successful connection
+    try:
+        mongo_client.admin.command('ping')
+        print("Pinged your deployment. You successfully connected to MongoDB!")
+    except Exception as e:
+        print(e)
+"""
+
 
 async def download_sheets():
     google_sheet_utils = GoogleSheetUtils()
