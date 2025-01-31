@@ -38,16 +38,19 @@ class MovementService:
         movement_type = "army" if movement.get("navy") == ['None'] else "fleet"
 
         # Pathfind.
-        path = self.pathfinding_utils.retrieve_movement_path(
+        path, terrain_values = self.pathfinding_utils.retrieve_movement_path(
             movement_type, movement.get("origin"),
             movement.get("destination"), movement.get("avoid")
         )
 
-        # Determine minutes per tile based on composition.
+        # Determine base minutes per hex based on composition.
         if movement.get("navy"):
-            minutes_per_tile = 1
+            base_minutes_per_hex = 1
         else:
-            minutes_per_tile = 2 if movement.get("siege") is None else 3
+            base_minutes_per_hex = 1 if movement.get("siege") is None else 2
+
+        # Calculate terrain mod minutes per hex.
+        terrain_mod_minutes_per_hex = base_minutes_per_hex * terrain_values[0]
 
         movement_uid = f"{movement.get('origin')}_{int(time.time())}"
 
@@ -58,7 +61,7 @@ class MovementService:
         siege = ', '.join(movement.get("siege")) if movement.get("siege") else "None"
         path_str = ', '.join(path) if path else "None"
 
-        success = await self.announce_departure(movement, movement_uid, path, minutes_per_tile, navy)
+        success = await self.announce_departure(movement, movement_uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy)
         if not success:
             return False
 
@@ -66,11 +69,11 @@ class MovementService:
         return self.local_sheet_utils.write_to_row(
             "Movements",
             [movement_uid, movement.get("player"), movement_type, commanders, army, navy, siege,
-            movement.get("intent"), path_str, path[0] if path else "None", minutes_per_tile, 0,
+            movement.get("intent"), path_str, terrain_values, path[0] if path else "None", base_minutes_per_hex, terrain_mod_minutes_per_hex, 0,
             movement.get("arrival")]
         )
     
-    async def announce_departure(self, movement, uid, path, minutes_per_tile, navy):
+    async def announce_departure(self, movement, uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy):
         # Resolve the channel
         channel_id = settings.MovementsChannel
         channel = self.bot.get_channel(channel_id)
@@ -80,13 +83,15 @@ class MovementService:
             except Exception as e:
                 print(f"Error: Unable to fetch channel with ID {channel_id}. Exception: {e}")
                 return False
+        
+        average_terrain_mod = sum(terrain_values)/len(terrain_values)
 
         message = movement.get("departure")
         # Send the movement completion message
         if message == "None":
-            await channel.send(f"- {'Ships' if navy != 'None' else 'Men'} are spotted departing {movement.get('origin')} || UID: {uid}, ETC: {len(path)*minutes_per_tile} Minutes. ||")
+            await channel.send(f"- {'Ships' if navy != 'None' else 'Men'} are spotted departing {movement.get('origin')} || UID: {uid}, ETC: {len(path)*(terrain_mod_minutes_per_hex)} Minutes. ||")
         else:
-            await channel.send(f"- {message} || UID: {uid}, ETC: {len(path)*minutes_per_tile} Minutes. ||")
+            await channel.send(f"- {message} || UID: {uid}, ETC: {len(path)*(terrain_mod_minutes_per_hex)} Minutes. ||")
 
         # Extract numeric user ID
         try:
@@ -114,7 +119,9 @@ class MovementService:
                         "Origin",
                         "Destination",
                         "Path of Hex IDs",
-                        "Minutes Per Hex",
+                        "Terrain Values",
+                        "Base Minutes Per Hex",
+                        "Terrain Mod Minutes Per Hex",
                         "Movement UID"
                     ],
                     [
@@ -127,7 +134,9 @@ class MovementService:
                         movement.get("origin"),
                         movement.get("destination"),
                         path,
-                        minutes_per_tile,
+                        terrain_values,
+                        base_minutes_per_hex,
+                        terrain_mod_minutes_per_hex,
                         uid
                     ],
                 ),
@@ -155,6 +164,7 @@ class MovementService:
             uid_index = header.index("Movement UID")
             player_index = header.index("Player")
             path_index = header.index("Path")
+            terrain_value_index = header.index("Terrain Values")
             intent_index = header.index("Intent")
         except ValueError:
             return False
@@ -165,9 +175,10 @@ class MovementService:
                 movement_uid = row[uid_index]
                 player = row[player_index]
                 path = row[path_index]
+                terrain = row[terrain_value_index]
                 intent = row[intent_index]
                 # Format and append the movement information
-                movement_info.append(f"UID: {movement_uid}, Player: {player}, Path: [{path}], Intent: {intent}")
+                movement_info.append(f"UID: {movement_uid}, Player: {player}, Path: [{path}], Terrain Values: [{terrain}], Intent: {intent}")
             except IndexError:
                 print(f"Warning: Skipped a row due to missing data - {row}")
 
@@ -194,6 +205,7 @@ class MovementService:
             uid_index = header.index("Movement UID")
             player_index = header.index("Player")
             path_index = header.index("Path")
+            terrain_values_index = header.index("Terrain Values")
             intent_index = header.index("Intent")
         except ValueError:
             return False
@@ -206,9 +218,10 @@ class MovementService:
                 try:
                     movement_uid = row[uid_index]
                     path = row[path_index]
+                    terrain = row[terrain_values_index]
                     intent = row[intent_index]
                     # Format and append the movement information
-                    movement_info.append(f"UID: {movement_uid}, Player: {player}, Path: [{path}], Intent: {intent}")
+                    movement_info.append(f"UID: {movement_uid}, Player: {player}, Path: [{path}], Terrain Values: [{terrain}], Intent: {intent}")
                 except IndexError:
                     print(f"Warning: Skipped a row due to missing data - {row}")
 
@@ -238,8 +251,10 @@ class MovementService:
             siege_index = header.index("Siege")
             intent_index = header.index("Intent")
             path_index = header.index("Path")
+            terrain_values_index = header.index("Terrain Values")
             current_hex_index = header.index("Current Hex")
-            minutes_per_hex_index = header.index("Minutes per Hex")
+            base_minutes_per_hex_index = header.index("Base Minutes per Hex")
+            terrain_mod_minutes_per_hex_index = header.index("Terrain Mod Minutes per Hex")
             minutes_since_last_hex_index = header.index("Minutes since last Hex")
             message_index = header.index("Message")
         except ValueError:
@@ -261,8 +276,10 @@ class MovementService:
                             "Navy",
                             "Siege",
                             "Path of Hex IDs",
+                            "Terrain Values",
                             "Current Hex ID",
-                            "Minutes Per Hex",
+                            "Base Minutes Per Hex",
+                            "Terrain Mod Minutes Per Hex",
                             "Minutes Since Last Hex",
                             "Arrival Message"
                         ],
@@ -276,8 +293,10 @@ class MovementService:
                             row[navy_index],
                             row[siege_index],
                             row[path_index],
+                            row[terrain_values_index],
                             row[current_hex_index],
-                            row[minutes_per_hex_index],
+                            row[base_minutes_per_hex_index],
+                            row[terrain_mod_minutes_per_hex_index],
                             row[minutes_since_last_hex_index],
                             row[message_index]
                         ],
@@ -311,8 +330,10 @@ class MovementService:
             siege_index = header.index("Siege")
             intent_index = header.index("Intent")
             path_index = header.index("Path")
+            terrain_values_index = header.index("Terrain Values")
             current_hex_index = header.index("Current Hex")
-            minutes_per_hex_index = header.index("Minutes per Hex")
+            base_minutes_per_hex_index = header.index("Base Minutes per Hex")
+            terrain_mod_minutes_per_hex_index = header.index("Terrain Mod Minutes per Hex")
             minutes_since_last_hex_index = header.index("Minutes since last Hex")
             message_index = header.index("Message")
         except ValueError:
@@ -334,8 +355,10 @@ class MovementService:
                             "Navy",
                             "Siege",
                             "Path of Hex IDs",
+                            "Terrain Values",
                             "Current Hex ID",
-                            "Minutes Per Hex",
+                            "Base Minutes Per Hex",
+                            "Terrain Mod Minutes Per Hex",
                             "Minutes Since Last Hex",
                             "Arrival Message"
                         ],
@@ -349,8 +372,10 @@ class MovementService:
                             row[navy_index],
                             row[siege_index],
                             row[path_index],
+                            row[terrain_values_index],
                             row[current_hex_index],
-                            row[minutes_per_hex_index],
+                            row[base_minutes_per_hex_index],
+                            row[terrain_mod_minutes_per_hex_index],
                             row[minutes_since_last_hex_index],
                             row[message_index]
                         ],
@@ -373,6 +398,7 @@ class MovementService:
         uid_index = headers.index("Movement UID")
         current_hex_index = headers.index("Current Hex")
         path_index = headers.index("Path")
+        terrain_values_index = headers.index("Terrain Values")
         minutes_since_last_hex_index = headers.index("Minutes since last Hex")
         intent_index = headers.index("Intent")
         message_index = headers.index("Message")
@@ -387,15 +413,23 @@ class MovementService:
             if row[uid_index] == uid:
                 # Found the movement
                 path = row[path_index].split(",")  # Split path into individual hexes
+                terrain = row[terrain_values_index].split(",") # Split terrain into individual values
                 current_hex = row[current_hex_index]  # Current hex
                 
                 # Find the index of the current hex in the path
                 if current_hex in path:
                     current_hex_index_in_path = path.index(current_hex)
-                    # Create a reversed path starting from the current hex
+                    
                     row[intent_index] = "Retreat"
+
+                    # Create a reversed path starting from the current hex
                     new_path = path[current_hex_index_in_path::-1]  # Reverse up to and including current hex
                     row[path_index] = ",".join(new_path)  # Update the path
+
+                    # Create reversed terrain values starting from the current hex (value)
+                    new_terrain = terrain[current_hex_index_in_path::-1]
+                    row[terrain_values_index] = ",".join(new_terrain)  # Update the terrain values
+
                     row[minutes_since_last_hex_index] = "0"  # Reset time to 0
                     row[message_index] = "None"
                     movement_found = True
@@ -475,23 +509,27 @@ class MovementService:
             await ctx.send("Are you retarded? I even highlighted the right answers :sob:")
             return None, None  # Return a tuple with `None` values
 
-        # Determine minutes per tile based on composition
+        # Determine base minutes per hex based on composition
         if movement_type == "fleet":
-            minutes_per_tile = 1
+            base_minutes_per_hex = 1
         else:
-            minutes_per_tile = 2 if siege.lower() in ["n", "no"] else 3
+            base_minutes_per_hex = 2 if siege.lower() in ["n", "no"] else 3
 
         # Retrieve the movement path
-        path = self.pathfinding_utils.retrieve_movement_path(
+        path, terrain_values = self.pathfinding_utils.retrieve_movement_path(
             movement_type, origin,
             destination, avoid
         )
+        average_terrain_mod = sum(terrain_values)/len(terrain_values)
 
         if not path:  # If pathfinding failed, return empty path
             return [], 0
 
-        # Return the path and total time
-        return path, len(path) * minutes_per_tile
+        # Calculate terrain mod minutes per hex
+        terrain_mod_minutes_per_hex = base_minutes_per_hex * average_terrain_mod
+
+        # Return the path and total time (impacted by terrain mod minutes per hex)
+        return path, len(path) * terrain_mod_minutes_per_hex
 
     def retrieve_hex_info(self, hex):
         # Retrieve data from the "Map" sheet

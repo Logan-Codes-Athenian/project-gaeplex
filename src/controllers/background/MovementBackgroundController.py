@@ -24,7 +24,7 @@ class MovementBackgroundController(commands.Cog):
             return
 
         for row in sheet_values[1:]:
-            uid, player, movement_type, commanders, army, navy, siege, intent, path, current_hex, minutes_per_hex, minutes_since_last_hex, message = row
+            uid, player, movement_type, commanders, army, navy, siege, intent, path, terrain_values, current_hex, base_minutes_per_hex, terrain_mod_minutes_per_hex, minutes_since_last_hex, message = row
             
             self.movements[uid] = {
                 'player': player,
@@ -35,12 +35,13 @@ class MovementBackgroundController(commands.Cog):
                 'siege': siege,
                 'intent': intent,
                 'path': [hex.strip() for hex in path.split(",")],  # Clean path here
+                'terrain_values': [hex.strip() for hex in terrain_values.split(",")],  # Clean terrain_values
                 'current_hex': current_hex.strip(),  # Clean current_hex here
-                'minutes_per_hex': int(minutes_per_hex),
+                'base_minutes_per_hex': int(base_minutes_per_hex),
+                'terrain_mod_minutes_per_hex': int(terrain_mod_minutes_per_hex),
                 'minutes_since_last_hex': int(minutes_since_last_hex),
                 'message': message
             }
-
 
     @tasks.loop(minutes=1)  # This will run every minute
     async def update_movements(self):
@@ -48,7 +49,7 @@ class MovementBackgroundController(commands.Cog):
         if is_paused: # If true, game is paused, do anything.
             return
         
-                # Fetch the latest sheet data before making updates
+        # Fetch the latest sheet data before making updates
         sheet_values = self.local_sheet_utils.get_sheet_by_name("Movements")
         if not sheet_values:
             print("Error: Could not retrieve data for 'Movements'.")
@@ -60,15 +61,16 @@ class MovementBackgroundController(commands.Cog):
         updated_data = []
         for uid, movement in self.movements.items():
             path = [hex.strip() for hex in movement['path']]  # Clean path
+            terrain_values = [hex.strip() for hex in movement['terrain_values']],  # Clean terrain_values
             current_hex = movement['current_hex'].strip()  # Clean current_hex
-            minutes_per_hex = movement['minutes_per_hex']
+            terrain_mod_minutes_per_hex = movement['terrain_mod_minutes_per_hex']
             minutes_since_last_hex = movement['minutes_since_last_hex']
             
             # Increment minutes since last hex
             minutes_since_last_hex += 1
             
             # Check if it's time to move to the next hex
-            if minutes_since_last_hex >= minutes_per_hex:
+            if minutes_since_last_hex >= terrain_mod_minutes_per_hex:
                 print(path)
                 print(path.index(current_hex))
                 current_hex_index = path.index(current_hex)
@@ -96,8 +98,10 @@ class MovementBackgroundController(commands.Cog):
                 movement['siege'],
                 movement['intent'],
                 ",".join(path),
+                movement['terrain_values'],
                 current_hex,
-                minutes_per_hex,
+                movement['base_minutes_per_hex'],
+                movement['terrain_mod_minutes_per_hex'],
                 minutes_since_last_hex,
                 movement['message']
             ])
@@ -158,7 +162,9 @@ class MovementBackgroundController(commands.Cog):
                         "Starting Hex ID",
                         "Destination",
                         "Path of Hex IDs",
-                        "Minutes Per Hex",
+                        "Terrain Values for Hexes along Path",
+                        "Base Minutes Per Hex",
+                        "Terrain Mod Minutes Per Hex",
                         "Movement UID"
                     ],
                     [
@@ -171,13 +177,15 @@ class MovementBackgroundController(commands.Cog):
                         data['path'][0],
                         destination,
                         data['path'],
-                        data['minutes_per_hex'],
+                        data['terrain_values'],
+                        data['base_minutes_per_hex'],
+                        data['terrain_mod_minutes_per_hex'],
                         uid
                     ],
                 ),
             )
         except discord.errors.Forbidden:
-            print("Can't DM user.")
+            print(f"Can't DM user: {user}.")
 
         # Remove the movement from memory
         if uid in self.movements:
@@ -227,6 +235,7 @@ class MovementBackgroundController(commands.Cog):
             # Add new movements or update existing ones
             if uid not in self.movements:
                 path = row[8].split(",")  # Convert path string to list
+                terrain_values = row[9].split(",")  # Convert terrain_values string to list
                 self.movements[uid] = {
                     'player': row[1],
                     'movement_type': row[2],
@@ -236,22 +245,39 @@ class MovementBackgroundController(commands.Cog):
                     'siege': row[6],
                     'intent': row[7],
                     'path': [hex.strip() for hex in path],  # Clean path here
-                    'current_hex': row[9].strip(),  # Clean current_hex here
-                    'minutes_per_hex': int(row[10]),
-                    'minutes_since_last_hex': int(row[11]),
-                    'message': row[12]
+                    'terrain_values': [val.strip() for val in terrain_values],  # Clean terrain_values
+                    'current_hex': row[10].strip(),  # Clean current_hex here
+                    'base_minutes_per_hex': int(row[11]),
+                    'terrain_mod_minutes_per_hex': int(row[12]),
+                    'minutes_since_last_hex': int(row[13]),
+                    'message': row[14]
                 }
             else:
                 # Update existing movement if intent changes to "Retreat"
                 intent = row[7]
                 if intent == "Retreat":
                     new_path = row[8]
+                    terrain_values = row[9]
+
                     if isinstance(new_path, str):
                         new_path = [hex.strip() for hex in new_path.split(",")]  # Clean path
-                    self.movements[uid]['path'] = new_path
+                    if isinstance(terrain_values, str):
+                        terrain_values = [val.strip() for val in terrain_values.split(",")]  # Clean terrain values
+
+                    # Reverse the path and adjust terrain_values
+                    reversed_path = new_path[::-1]
+                    reversed_terrain_values = terrain_values[::-1]
+                    
+                    # Ensure the current hex is the starting point for both
+                    current_hex = row[10].strip()
+                    reversed_path[0] = current_hex
+                    reversed_terrain_values[0] = current_hex
+
+                    self.movements[uid]['path'] = reversed_path
+                    self.movements[uid]['terrain_values'] = reversed_terrain_values
                     self.movements[uid]['intent'] = intent
                     self.movements[uid]['minutes_since_last_hex'] = 0
-                    self.movements[uid]['message'] = row[12]
+                    self.movements[uid]['message'] = row[14]
 
         # Remove deleted movements
         self.remove_deleted_movements(current_uids_in_sheet)
@@ -267,7 +293,7 @@ class MovementBackgroundController(commands.Cog):
         hex_army_map = {}  # Map hex IDs to lists of army UIDs
         for row in updated_data:
             uid = row[0]
-            current_hex = row[9]  # Column index for current_hex in updated_data
+            current_hex = row[10]  # Column index for current_hex in updated_data
             if current_hex not in hex_army_map:
                 hex_army_map[current_hex] = []
             hex_army_map[current_hex].append(uid)

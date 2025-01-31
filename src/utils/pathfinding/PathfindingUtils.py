@@ -19,7 +19,7 @@ class PathfindingUtils:
             row_dict = {column_headings[i]: row[i] for i in range(len(column_headings))}
             map_data.append(row_dict)
 
-        return map_data  # No need to return as JSON unless required
+        return map_data
 
     # Heuristic function: straight-line distance between two hexes
     def heuristic(self, hex1, hex2):
@@ -47,7 +47,7 @@ class PathfindingUtils:
             _, current = heappop(open_set)
             
             if current == goal:
-                return self.reconstruct_path(came_from, current)
+                return self.reconstruct_path(came_from, current), self.extract_terrain_values(came_from, current, hex_map)
             
             neighbors = self.get_neighbors(movement_type, current, hex_map, avoid_hexes)
             for neighbor in neighbors:
@@ -60,7 +60,7 @@ class PathfindingUtils:
                     f_score[neighbor] = tentative_g_score + self.heuristic(neighbor, goal)
                     heappush(open_set, (f_score[neighbor], neighbor))
         
-        return None  # No path found
+        return None, None  # No path found
 
     # Reconstruct the path from the came_from dictionary
     def reconstruct_path(self, came_from, current):
@@ -71,6 +71,11 @@ class PathfindingUtils:
         path.reverse()
         return path
 
+    # Extract terrain values for the path
+    def extract_terrain_values(self, came_from, current, hex_map):
+        path = self.reconstruct_path(came_from, current)
+        return [hex_map[hex_id]['Terrain'] for hex_id in path]
+
     # Determine movement cost based on terrain, with special rules for Mountains
     def terrain_movement_cost(self, movement_type, hex_data):
         terrain = hex_data['Terrain']
@@ -80,57 +85,42 @@ class PathfindingUtils:
 
         if movement_type == "army":
             if has_river and not has_road and not has_holding:
-                # If tile has river and no road or holding, it is impassable.
                 return float('inf')
             if terrain == "Mountains":
-                # Mountain is passable if it has either a Road or a Holding
                 return 3 if has_road or has_holding else float('inf')
             if terrain == "Sea":
-                return float('inf')  # Sea is impassable for army
-            # Cost for other terrains
+                return float('inf')
             terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3, 
                              "Forest": 3, "Dense Forest": 4, "Snow": 3,
                              "Snowy Forest": 4, "Plains": 1, "Coast": 2, 
                              "Island": 1}
-            return terrain_costs.get(terrain, 1)  # Default cost for other terrains
+            return terrain_costs.get(terrain, 1)
 
-        if movement_type == "fleet" and terrain == "Sea" or terrain == "Coast" or terrain == "Island":
+        if movement_type == "fleet" and terrain in ["Sea", "Coast", "Island"]:
             return 1
-        return float('inf')  # Non-sea/coast/island is impassable by ship
+        return float('inf')
 
     # Get the neighbors of a hex, considering avoid list
     def get_neighbors(self, movement_type, hex_id, hex_map, avoid_hexes):
         col, row = hex_id[0], int(hex_id[1:])
         neighbors = []
         
-        # Direction offsets for odd and even columns
         odd_offsets = [(-1, 1), (0, -1), (-1, 0), (1, 0), (0, 1), (1, 1)]
         even_offsets = [(-1, 0), (0, -1), (-1, -1), (1, -1), (0, 1), (1, 0)]
-        
-        # Determine if the column is odd or even
         column_index = ord(col) - ord('A')
         offsets = odd_offsets if column_index % 2 != 0 else even_offsets
         
-        # Check all possible neighbors
         for dx, dy in offsets:
             neighbor_col = chr(ord(col) + dx)
             neighbor_row = row + dy
             neighbor_id = f"{neighbor_col}{neighbor_row}"
             
-            # Check if the neighbor exists
             if neighbor_id in hex_map:
-                # Skip neighbors in the avoid list
                 if neighbor_id in avoid_hexes:
-                    print(f"Skipping {neighbor_id} because it's in the avoid list.")
                     continue
-                
                 neighbor_data = hex_map[neighbor_id]
-                
-                # Ensure it's not impassable based on terrain
                 if self.terrain_movement_cost(movement_type, neighbor_data) != float('inf'):
                     neighbors.append(neighbor_id)
-                else:
-                    print(f"Skipping {neighbor_id} because terrain is impassable.")
         
         return neighbors
 
@@ -143,7 +133,6 @@ class PathfindingUtils:
     def retrieve_movement_path(self, movement_type, start, goal, avoid):
         hexes = self.retrieve_digital_map()
 
-        # Ensure avoid is a list (or empty list if None)
         if avoid is None:
             avoid = []
 
@@ -151,37 +140,31 @@ class PathfindingUtils:
         start_hex = None
         goal_hex = None
 
-        # Check if start and goal are Hex IDs
         for hex_data in hexes:
             if start == hex_data['Hex']:
-                start_hex = start  # Start is already a Hex ID
+                start_hex = start
             elif hex_data.get('Holding Name') == start:
-                start_hex = hex_data['Hex']  # Start resolved from Holding Name
+                start_hex = hex_data['Hex']
             
             if goal == hex_data['Hex']:
-                goal_hex = goal  # Goal is already a Hex ID
+                goal_hex = goal
             elif hex_data.get('Holding Name') == goal:
-                goal_hex = hex_data['Hex']  # Goal resolved from Holding Name
+                goal_hex = hex_data['Hex']
             
-            # Populate avoid_hexes
             for avoid_item in avoid:
                 if avoid_item == hex_data['Hex'] or hex_data.get('Holding Name') == avoid_item:
                     avoid_hexes.add(hex_data['Hex'])
 
-        # Debugging information
-        print(f"Resolved Start Hex: {start_hex}, Goal Hex: {goal_hex}, Avoid Hexes: {avoid_hexes}")
-
-        # Verify start and goal
         if not start_hex or not goal_hex:
             print("Invalid start or goal Hex or Holding Name.")
-            return None
+            return None, None
 
-        # Run the A* algorithm
-        path = self.a_star(movement_type.lower(), start_hex, goal_hex, hexes, avoid_hexes)
-        
+        path, terrain_values = self.a_star(movement_type.lower(), start_hex, goal_hex, hexes, avoid_hexes)
+
         if path:
             print("Path found:", path)
+            print("Terrain values:", terrain_values)
         else:
             print("No path found.")
-        
-        return path
+
+        return path, terrain_values
