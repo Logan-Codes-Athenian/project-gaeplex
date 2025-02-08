@@ -7,8 +7,8 @@ class TemplateUtils:
     def parse_movement_template(self, template):
         pattern = re.compile(
             r"Player:\s*(?P<player><@[\d]+>)\s*"  
-            r"To:\s*(?P<destination>[A-Z]\d+|[A-Za-z]+)\s*"  
-            r"From:\s*(?P<origin>[A-Z]\d+|[A-Za-z]+)\s*"
+            r"To:\s*(?P<destination>[A-Z]+\d+|[A-Za-z]+)\s*"  
+            r"From:\s*(?P<origin>[A-Z]+\d+|[A-Za-z]+)\s*"
             r"Commanders:\s*(?P<commanders>[^\n]+)\s*"
             r"Intentions:\s*(?P<intent>[^\n]+)\s*"
             r"Army:\s*(?P<army>[^\n]+)\s*"

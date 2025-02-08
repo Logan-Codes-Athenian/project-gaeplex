@@ -12,11 +12,14 @@ class PathfindingUtils:
         # Extract the column headings from the first row
         column_headings = sheet_values[0]
         sheet_values = sheet_values[1:]  # Remove the headings from the data
-        
+
         # Convert rows into a list of dictionaries
         map_data = []
         for row in sheet_values:
-            row_dict = {column_headings[i]: row[i] for i in range(len(column_headings))}
+            row_dict = {
+                column_headings[i]: (row[i] == "TRUE" if row[i] in ["TRUE", "FALSE"] else row[i])
+                for i in range(len(column_headings))
+            }
             map_data.append(row_dict)
 
         return map_data
@@ -47,7 +50,7 @@ class PathfindingUtils:
             _, current = heappop(open_set)
             
             if current == goal:
-                return self.reconstruct_path(came_from, current), self.extract_terrain_values(came_from, current, hex_map)
+                return self.reconstruct_path(came_from, current), self.extract_terrain_values(came_from, current, hex_map, movement_type)
             
             neighbors = self.get_neighbors(movement_type, current, hex_map, avoid_hexes)
             for neighbor in neighbors:
@@ -72,19 +75,25 @@ class PathfindingUtils:
         return path
 
     # Extract terrain values for the path
-    def extract_terrain_values(self, came_from, current, hex_map):
+    def extract_terrain_values(self, came_from, current, hex_map, movement_type):
         path = self.reconstruct_path(came_from, current)
-        return [hex_map[hex_id]['Terrain'] for hex_id in path]
+        terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3, 
+                         "Forest": 3, "Dense Forest": 4, "Snow": 3,
+                         "Snowy Forest": 4, "Plains": 1, "Coast": 2, 
+                         "Island": 1}
+        return [self.terrain_movement_cost(movement_type, hex_map[hex_id]) for hex_id in path]
 
     # Determine movement cost based on terrain, with special rules for Mountains
     def terrain_movement_cost(self, movement_type, hex_data):
-        terrain = hex_data['Terrain']
-        has_road = hex_data.get('Road', False)
-        has_river = hex_data.get('River', False)
-        has_holding = hex_data.get('Holding', False)
+        terrain = hex_data["Terrain"]
+        print(hex_data)
+        has_road = hex_data.get("Road", False)
+        has_river = hex_data.get("River", False)
+        has_holding = hex_data.get("Holding", False)
+        print(f"road: {has_road}, river {has_river}, holding {has_holding}")
 
         if movement_type == "army":
-            if has_river and not has_road and not has_holding:
+            if has_river == True and (has_road == False and has_holding == False):
                 return float('inf')
             if terrain == "Mountains":
                 return 3 if has_road or has_holding else float('inf')
@@ -102,33 +111,65 @@ class PathfindingUtils:
 
     # Get the neighbors of a hex, considering avoid list
     def get_neighbors(self, movement_type, hex_id, hex_map, avoid_hexes):
-        col, row = hex_id[0], int(hex_id[1:])
+        col_part, row_part = self.split_hex_id(hex_id)
+        row = int(row_part)
         neighbors = []
         
-        odd_offsets = [(-1, 1), (0, -1), (-1, 0), (1, 0), (0, 1), (1, 1)]
-        even_offsets = [(-1, 0), (0, -1), (-1, -1), (1, -1), (0, 1), (1, 0)]
-        column_index = ord(col) - ord('A')
-        offsets = odd_offsets if column_index % 2 != 0 else even_offsets
+        column_index = self.column_to_index(col_part)
+        
+        # Hex grid movement offsets based on column parity
+        offsets = [
+            (-1, 0), (1, 0),  # Left, Right
+            (0, -1), (0, 1),  # Top, Bottom
+            (-1, 1) if column_index % 2 == 0 else (-1, -1),  # Top-left / Bottom-left
+            (1, 1) if column_index % 2 == 0 else (1, -1),  # Top-right / Bottom-right
+        ]
         
         for dx, dy in offsets:
-            neighbor_col = chr(ord(col) + dx)
+            neighbor_col = self.index_to_column(column_index + dx)
             neighbor_row = row + dy
-            neighbor_id = f"{neighbor_col}{neighbor_row}"
+            neighbor_id = f"{neighbor_col}{neighbor_row:02d}"  # Ensure row is two digits
             
-            if neighbor_id in hex_map:
-                if neighbor_id in avoid_hexes:
-                    continue
-                neighbor_data = hex_map[neighbor_id]
-                if self.terrain_movement_cost(movement_type, neighbor_data) != float('inf'):
+            if neighbor_id in hex_map and neighbor_id not in avoid_hexes:
+                terrain_cost = self.terrain_movement_cost(movement_type, hex_map[neighbor_id])
+                if terrain_cost != float('inf'):
                     neighbors.append(neighbor_id)
         
         return neighbors
 
     # Convert hex IDs to numerical coordinates for distance calculations
     def hex_to_coordinates(self, hex_id):
-        col, row = hex_id[0], int(hex_id[1:])
-        column_index = ord(col) - ord('A')
+        col_part, row_part = self.split_hex_id(hex_id)
+        column_index = self.column_to_index(col_part)
+        row = int(row_part)
         return column_index, row
+
+    # Split hex ID into column part and row part
+    def split_hex_id(self, hex_id):
+        # Split into column (letters) and row (digits)
+        col_part = ''
+        row_part = ''
+        for char in hex_id:
+            if char.isalpha():
+                col_part += char
+            else:
+                row_part += char
+        return col_part, row_part
+
+    # Convert column letters to index (e.g., A=0, B=1, ..., Z=25, AA=26, AB=27, etc.)
+    def column_to_index(self, col_part):
+        index = 0
+        for i, char in enumerate(reversed(col_part)):
+            index += (ord(char.upper()) - ord('A') + 1) * (26 ** i)
+        return index - 1  # Subtract 1 to make A=0, B=1, etc.
+
+    # Convert index to column letters (e.g., 0=A, 1=B, ..., 25=Z, 26=AA, 27=AB, etc.)
+    def index_to_column(self, index):
+        col_part = ''
+        while index >= 0:
+            col_part = chr(ord('A') + (index % 26)) + col_part
+            index = (index // 26) - 1
+        return col_part
 
     def retrieve_movement_path(self, movement_type, start, goal, avoid):
         hexes = self.retrieve_digital_map()

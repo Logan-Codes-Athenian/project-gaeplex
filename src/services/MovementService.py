@@ -43,6 +43,9 @@ class MovementService:
             movement.get("destination"), movement.get("avoid")
         )
 
+        if path is None:
+            return False
+
         # Determine base minutes per hex based on composition.
         if movement.get("navy"):
             base_minutes_per_hex = 1
