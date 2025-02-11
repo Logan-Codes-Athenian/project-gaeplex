@@ -1,4 +1,5 @@
-TOKEN = "yo token"
-BotStatus = "Long Live The Gael. Death to the Fem-Norse"
+TOKEN = "Your Bot Token."
+BotStatus = "Generic Status."
 Prefix = ";"
-MOVEMENTS_CHANNEL = "yo channel"
+MovementsChannel = "Movements Channel ID here."
+GamemasterID = "Game Master ID, for army collision notifications etc."
