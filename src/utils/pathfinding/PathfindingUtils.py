@@ -77,10 +77,6 @@ class PathfindingUtils:
     # Extract terrain values for the path
     def extract_terrain_values(self, came_from, current, hex_map, movement_type):
         path = self.reconstruct_path(came_from, current)
-        terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3, 
-                         "Forest": 3, "Dense Forest": 4, "Snow": 3,
-                         "Snowy Forest": 4, "Plains": 1, "Coast": 2, 
-                         "Island": 1}
         return [self.terrain_movement_cost(movement_type, hex_map[hex_id]) for hex_id in path]
 
     # Determine movement cost based on terrain, with special rules for Mountains
@@ -101,7 +97,7 @@ class PathfindingUtils:
                 return float('inf')
             terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3, 
                              "Forest": 3, "Dense Forest": 4, "Snow": 3,
-                             "Snowy Forest": 4, "Plains": 1, "Coast": 2, 
+                             "Snowy Forest": 4, "Plains": 1, "Coast": 1, 
                              "Island": 1}
             return terrain_costs.get(terrain, 1)
 
