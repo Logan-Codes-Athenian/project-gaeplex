@@ -8,6 +8,7 @@ import settings as settings
 import discord
 import time
 import re
+import random
 
 class MovementService:
     def __init__(self, bot):
@@ -48,14 +49,14 @@ class MovementService:
 
         # Determine base minutes per hex based on composition.
         if movement.get("navy"):
-            base_minutes_per_hex = 1
+            base_minutes_per_hex = 30
         else:
-            base_minutes_per_hex = 1 if movement.get("siege") is None else 2
+            base_minutes_per_hex = 30 if movement.get("siege") is None else 60
 
         # Calculate terrain mod minutes per hex.
         terrain_mod_minutes_per_hex = base_minutes_per_hex * terrain_values[0]
 
-        movement_uid = f"{movement.get('origin')}_{int(time.time())}"
+        movement_uid = f"{random.randint(0, 1000)}_{int(time.time())}"
 
         # Prepare list fields as comma-separated strings
         commanders = ', '.join(movement.get("commanders")) if movement.get("commanders") else "None"
