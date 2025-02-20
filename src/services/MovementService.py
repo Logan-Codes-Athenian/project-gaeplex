@@ -52,10 +52,10 @@ class MovementService:
             base_minutes_per_hex = 30
         else:
             army_units = movement.get("army", [])
-            cav_terms = {"cavalry", "cav", "Cavalry"}
+            cav_terms = {"cavalry", "cav", "upstart noble band", "frankish knights"}
             
             # Check if army is not empty and all elements are cavalry-related
-            cav_only = bool(army_units) and all(unit in cav_terms for unit in army_units)
+            cav_only = bool(army_units) and all(unit.lower() in cav_terms for unit in army_units)
             
             if cav_only:
                 base_minutes_per_hex = 15
