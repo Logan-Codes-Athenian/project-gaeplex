@@ -51,7 +51,18 @@ class MovementService:
         if movement.get("navy"):
             base_minutes_per_hex = 30
         else:
-            base_minutes_per_hex = 30 if movement.get("siege") is None else 60
+            army_units = movement.get("army", [])
+            cav_terms = {"cavalry", "cav", "Cavalry"}
+            
+            # Check if army is not empty and all elements are cavalry-related
+            cav_only = bool(army_units) and all(unit in cav_terms for unit in army_units)
+            
+            if cav_only:
+                base_minutes_per_hex = 15
+            elif movement.get("siege"):
+                base_minutes_per_hex = 60
+            else:
+                base_minutes_per_hex = 30
 
         # Calculate terrain mod minutes per hex.
         terrain_mod_minutes_per_hex = base_minutes_per_hex * terrain_values[0]
