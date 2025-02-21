@@ -35,6 +35,7 @@ async def on_ready():
             print(f"Failed to load cog {cog}\n{exc}")
     
     print("Bot is ready!")
+    await notify_game_master()
 
 async def download_sheets():
     google_sheet_utils = GoogleSheetUtils()
@@ -53,6 +54,35 @@ async def download_sheets():
             with open(f"{directory}/{sheet}.csv", mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerows(data)
+
+async def notify_game_master():
+    # Fetch the GameMaster's user and send a notification
+    id = settings.GamemasterID
+    try:
+        user = await client.fetch_user(id)
+        status = await get_game_status()
+        if status is not None:
+            await user.send(f"Bot is started, game is currently {status}.")
+        else:
+            await user.send(f"Bot is started, game Status Unavailable.")
+    except discord.errors.HTTPException as e:
+        print(f"Error: Unable to fetch user with ID {id}. Exception: {e}")
+
+async def get_game_status():
+    try:
+        # Read the CSV file
+        with open(f"src/sheets/Status.csv", mode='r', newline='') as file:
+            reader = csv.reader(file)
+            data = list(reader)  # Convert the CSV rows into a list of lists
+
+        # Loop through each row to find "Game Status" in the first column
+        for row in data:
+            if row[0] == "Game Status":
+                return row[1]  
+    except Exception:
+        return None
+    
+    return None
 
 # Use a fallback for TOKEN in case it's not in the environment
 client.run(os.environ.get("TOKEN", settings.TOKEN))
