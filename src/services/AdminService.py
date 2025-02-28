@@ -1,36 +1,35 @@
 import os
-import csv
+import pandas as pd
 from utils.sheets.GoogleSheetUtils import GoogleSheetUtils
 
 class AdminService:
     def __init__(self):
-        self.sheet_utils = GoogleSheetUtils()
         self.google_sheet_utils = GoogleSheetUtils()
 
     def update_google_sheets(self):
         sheet_names = ["Status", "Movements"]
     
         for sheet in sheet_names:
-            # Open the local CSV file and read its contents
-            with open(f"src/sheets/{sheet}.csv", mode='r', newline='') as file:
-                reader = csv.reader(file)
-                data = list(reader)  # Convert the CSV rows into a list of lists
+            file_path = f"src/sheets/{sheet}.csv"
+            try:
+                # Read the CSV file using pandas.
+                df = pd.read_csv(file_path, encoding='utf-8')
+                # Convert the DataFrame into a list of lists.
+                data = df.values.tolist()
+            except Exception as e:
+                print(f"Error reading {file_path}: {e}")
+                return False
 
-                # Write the data to the corresponding Google Sheet
-                result = self.google_sheet_utils.overwrite_sheet_by_name(sheet, data)
-
-                # Sheet does not Backup as expected.
-                if not result:
-                    return False
+            # Write the data to the corresponding Google Sheet.
+            result = self.google_sheet_utils.overwrite_sheet_by_name(sheet, data)
+            if not result:
+                return False
                 
-        # All Sheets Backup as expected.
+        # All sheets updated successfully.
         return True
-    
-    def download_google_sheets(self):
-        # Download sheets.
-        sheet_names = ["Status", "Movements"]
 
-        # Ensure the directory exists
+    def download_google_sheets(self):
+        sheet_names = ["Status", "Movements"]
         directory = "src/sheets"
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -39,31 +38,25 @@ class AdminService:
             data = self.google_sheet_utils.get_sheet_by_name(sheet)
             if data:
                 print(f"Downloading {sheet}.")
-                with open(f"{directory}/{sheet}.csv", mode='w', newline='') as file:
-                    writer = csv.writer(file)
-                    writer.writerows(data)
-        
+                # Convert the downloaded data (assumed to be a list of lists) into a DataFrame.
+                df = pd.DataFrame(data)
+                file_path = f"{directory}/{sheet}.csv"
+                try:
+                    df.to_csv(file_path, index=False, encoding='utf-8')
+                except Exception as e:
+                    print(f"Error writing {file_path}: {e}")
         return True
-        
+
     def change_game_status(self, status):
+        file_path = "src/sheets/Status.csv"
         try:
-            # Read the CSV file
-            with open(f"src/sheets/Status.csv", mode='r', newline='') as file:
-                reader = csv.reader(file)
-                data = list(reader)  # Convert the CSV rows into a list of lists
-
-            # Loop through each row to find "Game Status" in the first column
-            for row in data:
-                if row[0] == "Game Status":
-                    row[1] = status  # Update the second column with the new status
-                    break  # Exit the loop once we've found and updated the row
-
-            # Write the updated data back to the CSV file
-            with open(f"src/sheets/Status.csv", mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerows(data)  # Write all rows back to the file
-
+            # Read the Status.csv without a header (assuming the first column is the label).
+            df = pd.read_csv(file_path, header=None, encoding='utf-8')
+            # Update the second column for the row where the first column is "Game Status".
+            df.loc[df[0] == "Game Status", 1] = status
+            # Write the updated DataFrame back to the CSV file without headers.
+            df.to_csv(file_path, index=False, header=False, encoding='utf-8')
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Error updating game status in {file_path}: {e}")
             return False
-

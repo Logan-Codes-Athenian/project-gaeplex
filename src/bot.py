@@ -1,6 +1,6 @@
-import csv
 import os
 import discord
+import pandas as pd
 from discord.ext import commands
 from utils.sheets.GoogleSheetUtils import GoogleSheetUtils
 import settings as settings
@@ -8,7 +8,11 @@ import settings as settings
 intents = discord.Intents.all()
 
 # List of cogs to load
-cogs: list = ["controllers.MovementController", "controllers.AdminController", "controllers.background.MovementBackgroundController"]
+cogs: list = [
+    "controllers.MovementController", 
+    "controllers.AdminController", 
+    "controllers.background.MovementBackgroundController"
+]
 
 client = commands.Bot(command_prefix=settings.Prefix, help_command=None, intents=intents)
 sheet_utils = GoogleSheetUtils()
@@ -51,9 +55,14 @@ async def download_sheets():
         data = google_sheet_utils.get_sheet_by_name(sheet)
         if data:
             print(f"Downloading {sheet}.")
-            with open(f"{directory}/{sheet}.csv", mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerows(data)
+            # Convert the downloaded data (list of lists) into a DataFrame.
+            df = pd.DataFrame(data)
+            # Write the DataFrame to CSV. Using header=False to mimic original behavior.
+            file_path = f"{directory}/{sheet}.csv"
+            try:
+                df.to_csv(file_path, index=False, header=False, encoding='utf-8')
+            except Exception as e:
+                print(f"Error writing {file_path}: {e}")
 
 async def notify_game_master():
     # Fetch the GameMaster's user and send a notification
@@ -64,24 +73,22 @@ async def notify_game_master():
         if status is not None:
             await user.send(f"Bot is started, game is currently {status}.")
         else:
-            await user.send(f"Bot is started, game Status Unavailable.")
+            await user.send("Bot is started, game Status Unavailable.")
     except discord.errors.HTTPException as e:
         print(f"Error: Unable to fetch user with ID {id}. Exception: {e}")
 
 async def get_game_status():
+    file_path = "src/sheets/Status.csv"
     try:
-        # Read the CSV file
-        with open(f"src/sheets/Status.csv", mode='r', newline='') as file:
-            reader = csv.reader(file)
-            data = list(reader)  # Convert the CSV rows into a list of lists
-
-        # Loop through each row to find "Game Status" in the first column
-        for row in data:
+        # Read the CSV file using pandas (no header assumed)
+        df = pd.read_csv(file_path, header=None, encoding='utf-8')
+        # Loop through rows to find the one where the first column is "Game Status"
+        for index, row in df.iterrows():
             if row[0] == "Game Status":
-                return row[1]  
-    except Exception:
+                return row[1]
+    except Exception as e:
+        print(f"Error reading game status from {file_path}: {e}")
         return None
-    
     return None
 
 # Use a fallback for TOKEN in case it's not in the environment
