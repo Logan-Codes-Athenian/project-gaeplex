@@ -31,7 +31,7 @@ class AdminController(commands.Cog):
     async def pause(self, ctx):
         # Resolve the channel
         channel_id = settings.MovementsChannel
-        channel = self.bot.get_channel(channel_id)
+        channel = await self.bot.fetch_channel(channel_id)
 
         if not channel:
             await ctx.send(f"Could not find Movements Channel, check the Channel ID?\nChannel ID in bot: {channel_id}")
@@ -49,7 +49,7 @@ class AdminController(commands.Cog):
     async def unpause(self, ctx):
         # Resolve the channel
         channel_id = settings.MovementsChannel
-        channel = self.bot.get_channel(channel_id)
+        channel = await self.bot.fetch_channel(channel_id)
 
         if not channel:
             await ctx.send(f"Could not find Movements Channel, check the Channel ID?\nChannel ID in bot: {channel_id}")
