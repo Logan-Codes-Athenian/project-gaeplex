@@ -40,7 +40,7 @@ class AdminController(commands.Cog):
         success = self.admin_service.change_game_status("Paused")
         if success:
             await ctx.send(f"Pause Successful :)")
-            await channel.send(f"Game Paused @{strftime('%a, %d %b %Y %H:%M:%S +0000', gmtime())}")
+            await channel.send(f"```Game Paused @{strftime('%a, %d %b %Y %H:%M:%S +0000', gmtime())}```")
         else:
             await ctx.send(f"Pause Failed :(")
 
@@ -58,7 +58,7 @@ class AdminController(commands.Cog):
         success = self.admin_service.change_game_status("Unpaused")
         if success:
             await ctx.send(f"Unpause Successful :)")
-            await channel.send(f"Game Unpaused @{strftime('%a, %d %b %Y %H:%M:%S +0000', gmtime())}")
+            await channel.send(f"```Game Unpaused @{strftime('%a, %d %b %Y %H:%M:%S +0000', gmtime())}```")
         else:
             await ctx.send(f"Unpause Failed :(")
 

@@ -1,4 +1,5 @@
 import math
+import pandas as pd
 from heapq import heappop, heappush
 from utils.sheets.LocalSheetUtils import LocalSheetUtils
 
@@ -7,22 +8,15 @@ class PathfindingUtils:
         self.local_sheet_utils = LocalSheetUtils()
 
     def retrieve_digital_map(self):
-        sheet_values = self.local_sheet_utils.get_sheet_by_name("Map")
-
-        # Extract the column headings from the first row
-        column_headings = sheet_values[0]
-        sheet_values = sheet_values[1:]  # Remove the headings from the data
-
-        # Convert rows into a list of dictionaries
-        map_data = []
-        for row in sheet_values:
-            row_dict = {
-                column_headings[i]: (row[i] == "TRUE" if row[i] in ["TRUE", "FALSE"] else row[i])
-                for i in range(len(column_headings))
-            }
-            map_data.append(row_dict)
-
-        return map_data
+        file_path = f"{self.local_sheet_utils.DIR}/Map.csv"
+        try:
+            df = pd.read_csv(file_path, encoding="utf-8")
+            # Convert the DataFrame to a list of dictionaries
+            map_data = df.to_dict(orient='records')
+            return map_data
+        except Exception as e:
+            print(f"Error reading the map: {e}")
+            return []
 
     # Heuristic function: straight-line distance between two hexes
     def heuristic(self, hex1, hex2):

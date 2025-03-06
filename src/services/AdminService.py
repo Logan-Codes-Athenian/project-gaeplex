@@ -50,12 +50,12 @@ class AdminService:
     def change_game_status(self, status):
         file_path = "src/sheets/Status.csv"
         try:
-            # Read the Status.csv without a header (assuming the first column is the label).
-            df = pd.read_csv(file_path, header=None, encoding='utf-8')
-            # Update the second column for the row where the first column is "Game Status".
-            df.loc[df[0] == "Game Status", 1] = status
-            # Write the updated DataFrame back to the CSV file without headers.
-            df.to_csv(file_path, index=False, header=False, encoding='utf-8')
+            # Read the CSV normally so that pandas uses the first row as header.
+            df = pd.read_csv(file_path, encoding='utf-8')
+            # Update the value in the "Game Status" column in the first (and only) row.
+            df.loc[0, "Game Status"] = status
+            # Write the updated DataFrame back to CSV, preserving the header.
+            df.to_csv(file_path, index=False, encoding='utf-8')
             return True
         except Exception as e:
             print(f"Error updating game status in {file_path}: {e}")

@@ -31,8 +31,9 @@ class LocalSheetUtils:
         try:
             # Read the CSV using pandas.
             df = pd.read_csv(file_path, encoding="utf-8")
-            # Return the data as a list of rows.
-            return df.values.tolist()
+            print(f"Dataframe for Get Sheet: {file_path}\n{df}")
+            # Return the df.
+            return df
         except FileNotFoundError:
             print(f"Error: {sheet_name}.csv not found.")
             return None
@@ -43,8 +44,10 @@ class LocalSheetUtils:
     def update_sheet_by_name(self, sheet_name, updated_data):
         file_path = f"{self.DIR}/{sheet_name}.csv"
         try:
-            # Convert the updated data (list of lists) to a DataFrame.
-            df = pd.DataFrame(updated_data)
+            # Assume updated_data is a list of lists with the first row as header.
+            header = updated_data[0]
+            data_rows = updated_data[1:]
+            df = pd.DataFrame(data_rows, columns=header)
             df.to_csv(file_path, index=False, encoding="utf-8")
             return True
         except Exception as e:

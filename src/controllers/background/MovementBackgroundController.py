@@ -18,14 +18,28 @@ class MovementBackgroundController(commands.Cog):
         self.update_movements.start()  # Start the background task
 
     def load_movements(self):
-        sheet_values = self.local_sheet_utils.get_sheet_by_name("Movements")
-        if not sheet_values:
+        df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if df is None or df.empty:
             print("Error: Could not retrieve data for 'Movements'.")
             return
 
-        for row in sheet_values[1:]:
-            uid, player, movement_type, commanders, army, navy, siege, intent, path, terrain_values, current_hex, base_minutes_per_hex, terrain_mod_minutes_per_hex, minutes_since_last_hex, message = row
-            
+        for _, row in df.iterrows():
+            uid = row["Movement UID"]
+            player = row["Player"]
+            movement_type = row["Movement Type"]
+            commanders = row["Commanders"]
+            army = row["Army"]
+            navy = row["Navy"]
+            siege = row["Siege"]
+            intent = row["Intent"]
+            path = row["Path"]
+            terrain_values = row["Terrain Values"]
+            current_hex = row["Current Hex"]
+            base_minutes_per_hex = row["Base Minutes per Hex"]
+            terrain_mod_minutes_per_hex = row["Terrain Mod Minutes per Hex"]
+            minutes_since_last_hex = row["Minutes since last Hex"]
+            message = row["Message"]
+
             self.movements[uid] = {
                 'player': player,
                 'movement_type': movement_type,
@@ -34,9 +48,9 @@ class MovementBackgroundController(commands.Cog):
                 'navy': navy,
                 'siege': siege,
                 'intent': intent,
-                'path': [hex.strip() for hex in path.split(",")],  # Clean path here
-                'terrain_values': [hex.strip() for hex in terrain_values.split(",")],  # Clean terrain_values
-                'current_hex': current_hex.strip(),  # Clean current_hex here
+                'path': [hex.strip() for hex in str(path).split(",")],
+                'terrain_values': [val.strip() for val in str(terrain_values).split(",")],
+                'current_hex': str(current_hex).strip(),
                 'base_minutes_per_hex': int(base_minutes_per_hex),
                 'terrain_mod_minutes_per_hex': int(terrain_mod_minutes_per_hex),
                 'minutes_since_last_hex': int(minutes_since_last_hex),
@@ -45,49 +59,51 @@ class MovementBackgroundController(commands.Cog):
 
     @tasks.loop(minutes=1)  # This will run every minute
     async def update_movements(self):
-        is_paused = self.is_paused()
-        if is_paused: # If true, game is paused, do anything.
+        if self.is_paused():
             return
-        
-        # Fetch the latest sheet data before making updates
-        sheet_values = self.local_sheet_utils.get_sheet_by_name("Movements")
-        if not sheet_values:
+
+        # Retrieve latest sheet data (as a DataFrame)
+        df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if df is None or df.empty:
             print("Error: Could not retrieve data for 'Movements'.")
             return
 
-        self.update_in_memory_data_from_sheet(sheet_values)
-        
-        # Update in-memory movements and prepare data for the sheet
+        # Update in-memory data from the DataFrame
+        self.update_in_memory_data_from_sheet(df)
+
         updated_data = []
+        # Iterate through your in-memory movements dictionary
         for uid, movement in self.movements.items():
-            path = [hex.strip() for hex in movement['path']]  # Clean path
-            terrain_values = [hex.strip() for hex in movement['terrain_values']],  # Clean terrain_values
-            current_hex = movement['current_hex'].strip()  # Clean current_hex
+            # Ensure path and terrain_values are lists of strings
+            path = [hex.strip() for hex in movement['path']]
+            # Note: if terrain_values is already a list, no need to split it again
+            terrain_values = movement['terrain_values']
+            current_hex = movement['current_hex'].strip()
             terrain_mod_minutes_per_hex = movement['terrain_mod_minutes_per_hex']
-            minutes_since_last_hex = movement['minutes_since_last_hex']
-            
-            # Increment minutes since last hex
-            minutes_since_last_hex += 1
-            
+            minutes_since_last_hex = movement['minutes_since_last_hex'] + 1  # Increment minutes
+
             # Check if it's time to move to the next hex
             if minutes_since_last_hex >= terrain_mod_minutes_per_hex:
-                print(path)
-                print(path.index(current_hex))
-                current_hex_index = path.index(current_hex)
-                if current_hex_index < len(path) - 1:
-                    current_hex = path[current_hex_index + 1]
+                try:
+                    current_index = path.index(current_hex)
+                except ValueError:
+                    print(f"Warning: {current_hex} not found in path for movement {uid}")
+                    continue
+
+                if current_index < len(path) - 1:
+                    current_hex = path[current_index + 1]
                     minutes_since_last_hex = 0
                 else:
                     await self.complete_movement(uid)
-                    return
-            
+                    return  # Optionally, exit early if a movement is completed
+
             # Update the movement in memory
             self.movements[uid].update({
                 'current_hex': current_hex,
                 'minutes_since_last_hex': minutes_since_last_hex,
             })
 
-            # Prepare updated data for the sheet
+            # Prepare updated data for the sheet as a list (matching the CSV columns)
             updated_data.append([
                 uid,
                 movement['player'],
@@ -98,23 +114,28 @@ class MovementBackgroundController(commands.Cog):
                 movement['siege'],
                 movement['intent'],
                 ",".join(path),
-                movement['terrain_values'],
+                ",".join(terrain_values) if isinstance(terrain_values, list) else terrain_values,
                 current_hex,
                 movement['base_minutes_per_hex'],
                 movement['terrain_mod_minutes_per_hex'],
                 minutes_since_last_hex,
                 movement['message']
             ])
-        
-        # Merge updated data with any rows from the sheet that aren't in memory
-        for row in sheet_values[1:]:
-            if row[0] not in self.movements:
-                updated_data.append(row)
 
-        await self.check_for_army_collision(updated_data)
-        
-        # Write the merged data back to the sheet
-        self.local_sheet_utils.update_sheet_by_name("Movements", [sheet_values[0]] + updated_data)
+        # Merge updated data with any rows from the DataFrame that aren't in memory
+        header = list(df.columns)
+        # Convert the DataFrame to a list of dictionaries for easier lookup
+        sheet_rows = df.to_dict(orient="records")
+        for row in sheet_rows:
+            uid = row["Movement UID"]
+            if uid not in self.movements:
+                # Convert the dictionary back to a list matching the header order
+                merged_row = [row.get(col, "") for col in header]
+                updated_data.append(merged_row)
+
+        # Write the header plus updated rows back to the sheet
+        all_data = [header] + updated_data
+        self.local_sheet_utils.update_sheet_by_name("Movements", all_data)
 
     async def complete_movement(self, uid):
         data = self.movements[uid]
@@ -130,13 +151,17 @@ class MovementBackgroundController(commands.Cog):
                 print(f"Error: Unable to fetch channel with ID {channel_id}. Exception: {e}")
                 return
 
-        # Send the movement completion message
+        # Send the movement completion message in the channel
         if data['message'] == "None":
-            await channel.send(f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. They intend to: {data['intent']} || {uid} ||")
+            message_text = (
+                f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. "
+                f"They intend to: {data['intent']} || {uid} ||"
+            )
         else:
-            await channel.send(f"- {data['message']} || {uid} ||")
+            message_text = f"- {data['message']} || {uid} ||"
+        await channel.send(message_text)
 
-        # Extract numeric user ID
+        # Notify the player via DM
         try:
             user_id = int(re.sub(r'[^\d]', '', data['player']))
             user = await self.bot.fetch_user(user_id)
@@ -147,43 +172,40 @@ class MovementBackgroundController(commands.Cog):
             print(f"Error: Unable to fetch user with ID {user_id}. Exception: {e}")
             return
 
-        try: 
-            # Notify the player
-            await user.send(
-                "**Your movement is finished pookie :)**",
-                embed=self.embed_utils.set_info_embed_from_list(
-                    [
-                        "Embed Title",
-                        "Intent",
-                        "Commanders",
-                        "Army",
-                        "Navy",
-                        "Siege",
-                        "Starting Hex ID",
-                        "Destination",
-                        "Path of Hex IDs",
-                        "Terrain Values for Hexes along Path",
-                        "Base Minutes Per Hex",
-                        "Terrain Mod Minutes Per Hex",
-                        "Movement UID"
-                    ],
-                    [
-                        f"Movement from {data['path'][0]} to {destination}.",
-                        data['intent'],
-                        data['commanders'],
-                        data['army'],
-                        data['navy'],
-                        data['siege'],
-                        data['path'][0],
-                        destination,
-                        data['path'],
-                        data['terrain_values'],
-                        data['base_minutes_per_hex'],
-                        data['terrain_mod_minutes_per_hex'],
-                        uid
-                    ],
-                ),
+        try:
+            embed = self.embed_utils.set_info_embed_from_list(
+                [
+                    "Embed Title",
+                    "Intent",
+                    "Commanders",
+                    "Army",
+                    "Navy",
+                    "Siege",
+                    "Starting Hex ID",
+                    "Destination",
+                    "Path of Hex IDs",
+                    "Terrain Values for Hexes along Path",
+                    "Base Minutes Per Hex",
+                    "Terrain Mod Minutes Per Hex",
+                    "Movement UID"
+                ],
+                [
+                    f"Movement from {data['path'][0]} to {destination}.",
+                    data['intent'],
+                    data.get('commanders', 'N/A'),
+                    data['army'],
+                    data['navy'],
+                    data['siege'],
+                    data['path'][0],
+                    destination,
+                    data['path'],
+                    data['terrain_values'],
+                    data['base_minutes_per_hex'],
+                    data['terrain_mod_minutes_per_hex'],
+                    uid
+                ]
             )
+            await user.send("**Your movement is finished pookie :)**", embed=embed)
         except discord.errors.Forbidden:
             print(f"Can't DM user: {user}.")
 
@@ -191,14 +213,23 @@ class MovementBackgroundController(commands.Cog):
         if uid in self.movements:
             del self.movements[uid]
 
-        # Update the sheet data
-        sheet_values = self.local_sheet_utils.get_sheet_by_name("Movements")
-        updated_rows = [sheet_values[0]]  # Keep the header row
-        for row in sheet_values[1:]:
-            if row[0] != uid:
-                updated_rows.append(row)
+        # Update the sheet: remove the row with this uid
+        df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if df is None or df.empty:
+            return
 
-        self.local_sheet_utils.update_sheet_by_name("Movements", updated_rows)
+        # Remove duplicate header rows if any
+        if "Movement UID" in df.columns:
+            df = df[df["Movement UID"] != "Movement UID"]
+
+        # Filter out the row with the given UID
+        updated_df = df[df["Movement UID"] != uid]
+
+        # Convert the updated DataFrame back to a list of lists (header + data)
+        header = list(updated_df.columns)
+        data_rows = updated_df.values.tolist()
+        all_data = [header] + data_rows
+        self.local_sheet_utils.update_sheet_by_name("Movements", all_data)
     
     async def search_map_for_destination(self, destination):
         # Iterate through each row in the map data
@@ -213,73 +244,81 @@ class MovementBackgroundController(commands.Cog):
     
     def is_paused(self):
         sheet_values = self.local_sheet_utils.get_sheet_by_name("Status")
-        if not sheet_values:
+
+        # Check if DataFrame is empty or missing expected columns
+        if sheet_values is None or sheet_values.empty:
             print("Error: Could not retrieve data for 'Status'.")
             return True
-        
-        for row in sheet_values:
-            if row[0] == "Game Status":
-                if row[1] == "Unpaused":
-                    return False
-                else:
-                    return True
-        return True
+
+        # Ensure the DataFrame has at least one row and one column before accessing
+        if sheet_values.shape[0] == 0 or sheet_values.shape[1] == 0:
+            print("Error: 'Status' sheet is missing data.")
+            return True
+
+        # Access the first value safely
+        status = sheet_values.iloc[0, 0]  # Use `iloc` for position-based indexing
+
+        return status != "Unpaused"
     
-    def update_in_memory_data_from_sheet(self, sheet_values):                
-        # Update existing movements and add new movements from the sheet
+    def update_in_memory_data_from_sheet(self, df):
         current_uids_in_sheet = set()
-        for row in sheet_values[1:]:
-            uid = row[0]
+        for _, row in df.iterrows():
+            uid = row["Movement UID"]
             current_uids_in_sheet.add(uid)
             
-            # Add new movements or update existing ones
             if uid not in self.movements:
-                path = row[8].split(",")  # Convert path string to list
-                terrain_values = row[9].split(",")  # Convert terrain_values string to list
+                path_str = str(row["Path"]).strip()
+                terrain_values_str = str(row["Terrain Values"]).strip()
+                # Remove surrounding brackets if they exist.
+                if terrain_values_str.startswith("[") and terrain_values_str.endswith("]"):
+                    terrain_values_str = terrain_values_str[1:-1]
+                
                 self.movements[uid] = {
-                    'player': row[1],
-                    'movement_type': row[2],
-                    'commanders': row[3],
-                    'army': row[4],
-                    'navy': row[5],
-                    'siege': row[6],
-                    'intent': row[7],
-                    'path': [hex.strip() for hex in path],  # Clean path here
-                    'terrain_values': [val.strip() for val in terrain_values],  # Clean terrain_values
-                    'current_hex': row[10].strip(),  # Clean current_hex here
-                    'base_minutes_per_hex': int(row[11]),
-                    'terrain_mod_minutes_per_hex': int(row[12]),
-                    'minutes_since_last_hex': int(row[13]),
-                    'message': row[14]
+                    'player': row["Player"],
+                    'movement_type': row["Movement Type"],
+                    'commanders': row["Commanders"],
+                    'army': row["Army"],
+                    'navy': row["Navy"],
+                    'siege': row["Siege"],
+                    'intent': row["Intent"],
+                    'path': [hex.strip() for hex in path_str.split(",")],
+                    'terrain_values': [val.strip() for val in terrain_values_str.split(",")],
+                    'current_hex': str(row["Current Hex"]).strip(),
+                    'base_minutes_per_hex': int(row["Base Minutes per Hex"]),
+                    'terrain_mod_minutes_per_hex': int(row["Terrain Mod Minutes per Hex"]),
+                    'minutes_since_last_hex': int(row["Minutes since last Hex"]),
+                    'message': row["Message"]
                 }
             else:
-                # Update existing movement if intent changes to "Retreat"
-                intent = row[7]
+                # Update existing movement if necessary (for example, if intent is "Retreat")
+                intent = row["Intent"]
                 if intent == "Retreat":
-                    new_path = row[8]
-                    terrain_values = row[9]
+                    new_path = str(row["Path"]).strip()
+                    terrain_values = str(row["Terrain Values"]).strip()
+                    # Remove surrounding brackets from terrain values.
+                    if terrain_values.startswith("[") and terrain_values.endswith("]"):
+                        terrain_values = terrain_values[1:-1]
+                        
+                    new_path_list = [hex.strip() for hex in new_path.split(",")]
+                    terrain_values_list = [val.strip() for val in terrain_values.split(",")]
 
-                    if isinstance(new_path, str):
-                        new_path = [hex.strip() for hex in new_path.split(",")]  # Clean path
-                    if isinstance(terrain_values, str):
-                        terrain_values = [val.strip() for val in terrain_values.split(",")]  # Clean terrain values
+                    # Reverse the path and terrain values.
+                    reversed_path = new_path_list[::-1]
+                    reversed_terrain_values = terrain_values_list[::-1]
 
-                    # Reverse the path and adjust terrain_values
-                    reversed_path = new_path[::-1]
-                    reversed_terrain_values = terrain_values[::-1]
-                    
-                    # Ensure the current hex is the starting point for both
-                    current_hex = row[10].strip()
+                    current_hex = str(row["Current Hex"]).strip()
                     reversed_path[0] = current_hex
-                    reversed_terrain_values[0] = current_hex
+                    # Do NOT override reversed_terrain_values[0]
 
-                    self.movements[uid]['path'] = reversed_path
-                    self.movements[uid]['terrain_values'] = reversed_terrain_values
-                    self.movements[uid]['intent'] = intent
-                    self.movements[uid]['minutes_since_last_hex'] = 0
-                    self.movements[uid]['message'] = row[14]
+                    self.movements[uid].update({
+                        'path': reversed_path,
+                        'terrain_values': reversed_terrain_values,
+                        'intent': intent,
+                        'minutes_since_last_hex': 0,
+                        'message': row["Message"]
+                    })
 
-        # Remove deleted movements
+        # Remove deleted movements from memory.
         self.remove_deleted_movements(current_uids_in_sheet)
 
     def remove_deleted_movements(self, current_uids_in_sheet):

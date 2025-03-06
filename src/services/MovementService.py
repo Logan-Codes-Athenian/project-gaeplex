@@ -9,6 +9,7 @@ import discord
 import time
 import re
 import random
+import pandas as pd
 
 class MovementService:
     def __init__(self, bot):
@@ -33,12 +34,9 @@ class MovementService:
         except ValueError:
             return False
 
-        print('-' * 150)
-        print(movement)
-
         movement_type = "army" if movement.get("navy") == ['None'] else "fleet"
 
-        # Pathfind.
+        # Pathfind
         path, terrain_values = self.pathfinding_utils.retrieve_movement_path(
             movement_type, movement.get("origin"),
             movement.get("destination"), movement.get("avoid")
@@ -49,450 +47,156 @@ class MovementService:
 
         base_minutes_per_hex = self.movement_utils.get_minutes_per_hex(movement)
 
-        # Calculate terrain mod minutes per hex.
-        terrain_mod_minutes_per_hex = base_minutes_per_hex * terrain_values[0]
+        # Calculate terrain mod minutes per hex
+        terrain_mod_minutes_per_hex = base_minutes_per_hex * (sum(terrain_values)/len(terrain_values))
 
         movement_uid = f"{random.randint(0, 1000)}_{int(time.time())}"
 
-        # Prepare list fields as comma-separated strings
+        # Prepare data for sheet
         commanders = ', '.join(movement.get("commanders")) if movement.get("commanders") else "None"
         army = ', '.join(movement.get("army")) if movement.get("army") else "None"
         navy = ', '.join(movement.get("navy")) if movement.get("navy") else "None"
         siege = ', '.join(movement.get("siege")) if movement.get("siege") else "None"
         path_str = ', '.join(path) if path else "None"
+        terrain_str = ', '.join(map(str, terrain_values)) if terrain_values else "None"
 
         success = await self.announce_departure(movement, movement_uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy)
         if not success:
             return False
 
-        # Create Movement in Sheets.
+        # Create movement in sheet
         return self.local_sheet_utils.write_to_row(
             "Movements",
             [movement_uid, movement.get("player"), movement_type, commanders, army, navy, siege,
-            movement.get("intent"), path_str, terrain_values, path[0] if path else "None", base_minutes_per_hex, terrain_mod_minutes_per_hex, 0,
-            movement.get("arrival")]
+            movement.get("intent"), path_str, terrain_str, path[0] if path else "None", base_minutes_per_hex, 
+            terrain_mod_minutes_per_hex, 0, movement.get("arrival")]
         )
     
     async def announce_departure(self, movement, uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy):
-        # Resolve the channel
         channel_id = settings.MovementsChannel
         channel = self.bot.get_channel(channel_id)
         if channel is None:
             try:
                 channel = await self.bot.fetch_channel(channel_id)
             except Exception as e:
-                print(f"Error: Unable to fetch channel with ID {channel_id}. Exception: {e}")
+                print(f"Error fetching channel: {e}")
                 return False
         
-        average_terrain_mod = sum(terrain_values)/len(terrain_values)
-
+        total_minutes = len(path) * terrain_mod_minutes_per_hex
         message = movement.get("departure")
-        # Send the movement completion message
         if message == "None":
-            await channel.send(f"- {'Ships' if navy != 'None' else 'Men'} are spotted departing {movement.get('origin')} || UID: {uid}, ETC: {len(path)*(terrain_mod_minutes_per_hex)} Minutes. ||")
+            await channel.send(f"- {'Ships' if navy != 'None' else 'Men'} depart {movement.get('origin')} || UID: {uid}, ETC: {total_minutes} minutes ||")
         else:
-            await channel.send(f"- {message} || UID: {uid}, ETC: {len(path)*(terrain_mod_minutes_per_hex)} Minutes. ||")
+            await channel.send(f"- {message} || UID: {uid}, ETC: {total_minutes} minutes ||")
 
-        # Extract numeric user ID
         try:
             user_id = int(re.sub(r'[^\d]', '', movement.get("player")))
             user = await self.bot.fetch_user(user_id)
-        except ValueError:
-            print(f"Error: Invalid user ID format in data['player']: {movement.get('player')}")
-            return False
-        except discord.errors.HTTPException as e:
-            print(f"Error: Unable to fetch user with ID {user_id}. Exception: {e}")
+        except Exception as e:
+            print(f"Error fetching user: {e}")
             return False
 
         try:
-            # Notify the player
             await user.send(
-                "**Your movement has been queued Pookie. It will begin on Unpause. :)**",
+                "**Movement queued successfully**",
                 embed=self.embed_utils.set_info_embed_from_list(
-                    [
-                        "Embed Title",
-                        "Intent",
-                        "Commanders",
-                        "Army",
-                        "Navy",
-                        "Siege",
-                        "Origin",
-                        "Destination",
-                        "Path of Hex IDs",
-                        "Terrain Values",
-                        "Base Minutes Per Hex",
-                        "Terrain Mod Minutes Per Hex",
-                        "Movement UID"
-                    ],
-                    [
-                        f"Movement from {movement.get('origin')} to {movement.get('destination')}.",
-                        movement.get("intent"),
-                        movement.get("commanders"),
-                        movement.get("army"),
-                        movement.get("navy"),
-                        movement.get("siege"),
-                        movement.get("origin"),
-                        movement.get("destination"),
-                        path,
-                        terrain_values,
-                        base_minutes_per_hex,
-                        terrain_mod_minutes_per_hex,
-                        uid
-                    ],
-                ),
+                    ["Movement UID", "Path", "Base Minutes per Hex", "Terrain Mod Minutes per Hex"],
+                    [uid, " → ".join(path), base_minutes_per_hex, terrain_mod_minutes_per_hex]
+                    )
             )
         except discord.errors.Forbidden:
-            print("Can't DM user.")
+            print("Cannot DM user")
         return True
-    
+
     def retrieve_all_movements(self):
-        movement_info = []
-
-        # Retrieve data from the "Movements" sheet
-        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
-        
-        # Check if data was retrieved successfully
-        if not movements:
-            return False
-        
-        # Extract header and rows
-        header = movements[0]  # The first row is the header
-        rows = movements[1:]   # Remaining rows contain data
-
-        # Get indices for the required columns
+        movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if movements_df is None or movements_df.empty:
+            return "No active movements"
+            
         try:
-            uid_index = header.index("Movement UID")
-            player_index = header.index("Player")
-            path_index = header.index("Path")
-            terrain_value_index = header.index("Terrain Values")
-            intent_index = header.index("Intent")
-        except ValueError:
-            return False
+            return "\n".join(
+                f"UID: {row['Movement UID']}, Player: {row['Player']}, Type: {row['Movement Type']}, "
+                f"Terrain Values: {row['Terrain Values']}, Minutes/Hex: {row['Terrain Mod Minutes per Hex']}, Message: {row['Message']}"
+                for _, row in movements_df.iterrows()
+            )
+        except KeyError as e:
+            print(f"Missing column: {e}")
+            return "Error retrieving movements"
 
-        # Iterate through the rows and extract relevant information
-        for row in rows:
-            try:
-                movement_uid = row[uid_index]
-                player = row[player_index]
-                path = row[path_index]
-                terrain = row[terrain_value_index]
-                intent = row[intent_index]
-                # Format and append the movement information
-                movement_info.append(f"UID: {movement_uid}, Player: {player}, Path: [{path}], Terrain Values: [{terrain}], Intent: {intent}")
-            except IndexError:
-                print(f"Warning: Skipped a row due to missing data - {row}")
-
-        # Combine all rows into a single string with newline separators
-        return "\n".join(movement_info)
-    
-    def retrieve_user_movements(self, id):
-        print(id)
-        movement_info = []
-
-        # Retrieve data from the "Movements" sheet
-        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
-        
-        # Check if data was retrieved successfully
-        if not movements:
-            return False
-        
-        # Extract header and rows
-        header = movements[0]  # The first row is the header
-        rows = movements[1:]   # Remaining rows contain data
-
-        # Get indices for the required columns
+    def retrieve_user_movements(self, user_id):
+        movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if movements_df is None or movements_df.empty:
+            return "No movements found"
+            
+        user_movements = movements_df[movements_df['Player'] == user_id]
+        if user_movements.empty:
+            return "No movements for this user"
+            
         try:
-            uid_index = header.index("Movement UID")
-            player_index = header.index("Player")
-            path_index = header.index("Path")
-            terrain_values_index = header.index("Terrain Values")
-            intent_index = header.index("Intent")
-        except ValueError:
-            return False
+            return "\n".join(
+                f"UID: {row['Movement UID']}, Path: [{row['Path']}], Terrain: [{row['Terrain Values']}], Intent: {row['Intent']}"
+                for _, row in user_movements.iterrows()
+            )
+        except KeyError as e:
+            print(f"Missing column: {e}")
+            return "Error retrieving user movements"
 
-        # Iterate through the rows and extract relevant information
-        for row in rows:
-            player = row[player_index]
-            print(player)
-            if player == id:
-                try:
-                    movement_uid = row[uid_index]
-                    path = row[path_index]
-                    terrain = row[terrain_values_index]
-                    intent = row[intent_index]
-                    # Format and append the movement information
-                    movement_info.append(f"UID: {movement_uid}, Player: {player}, Path: [{path}], Terrain Values: [{terrain}], Intent: {intent}")
-                except IndexError:
-                    print(f"Warning: Skipped a row due to missing data - {row}")
-
-        # Combine all rows into a single string with newline separators
-        return "\n".join(movement_info)
-    
     def retrieve_movement(self, uid):
-        # Retrieve data from the "Movements" sheet
-        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
+        movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if movements_df is None or movements_df.empty:
+            return None
         
-        # Check if data was retrieved successfully
-        if not movements:
-            return False
+        movement = movements_df[movements_df['Movement UID'] == uid]
+        if movement.empty:
+            return None
         
-        # Extract header and rows
-        header = movements[0]  # The first row is the header
-        rows = movements[1:]   # Remaining rows contain data
+        row = movement.iloc[0]  # row is a Pandas Series
 
-        # Get indices for the required columns
-        try:
-            uid_index = header.index("Movement UID")
-            player_index = header.index("Player")
-            movement_type_index = header.index("Movement Type")
-            commanders_index = header.index("Commanders")
-            army_index = header.index("Army")
-            navy_index = header.index("Navy")
-            siege_index = header.index("Siege")
-            intent_index = header.index("Intent")
-            path_index = header.index("Path")
-            terrain_values_index = header.index("Terrain Values")
-            current_hex_index = header.index("Current Hex")
-            base_minutes_per_hex_index = header.index("Base Minutes per Hex")
-            terrain_mod_minutes_per_hex_index = header.index("Terrain Mod Minutes per Hex")
-            minutes_since_last_hex_index = header.index("Minutes since last Hex")
-            message_index = header.index("Message")
-        except ValueError:
-            return False
+        # Convert Series into column names and values
+        column_headings = list(row.index)  # Extract column names
+        data = list(row.values)  # Extract corresponding values
 
-        # Iterate through the rows and extract relevant information
-        for row in rows:
-            try:
-                if row[uid_index] == uid:
-                    # Format and return the movement embed
-                    return self.embed_utils.set_info_embed_from_list(
-                        [
-                            "Embed Title",
-                            "Player",
-                            "Movement Type",
-                            "Intent",
-                            "Commanders",
-                            "Army",
-                            "Navy",
-                            "Siege",
-                            "Path of Hex IDs",
-                            "Terrain Values",
-                            "Current Hex ID",
-                            "Base Minutes Per Hex",
-                            "Terrain Mod Minutes Per Hex",
-                            "Minutes Since Last Hex",
-                            "Arrival Message"
-                        ],
-                        [
-                            f"Retrieved Movement: {uid}",
-                            row[player_index],
-                            row[movement_type_index],
-                            row[intent_index],
-                            row[commanders_index],
-                            row[army_index],
-                            row[navy_index],
-                            row[siege_index],
-                            row[path_index],
-                            row[terrain_values_index],
-                            row[current_hex_index],
-                            row[base_minutes_per_hex_index],
-                            row[terrain_mod_minutes_per_hex_index],
-                            row[minutes_since_last_hex_index],
-                            row[message_index]
-                        ],
-                    )
-            except IndexError:
-                print(f"Error: missing data - {row}")
-                return False
-            
-        return False
-    
-    def retrieve_user_movement(self, uid, id):
-        # Retrieve data from the "Movements" sheet
-        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
-        
-        # Check if data was retrieved successfully
-        if not movements:
-            return False
-        
-        # Extract header and rows
-        header = movements[0]  # The first row is the header
-        rows = movements[1:]   # Remaining rows contain data
+        return self.embed_utils.set_info_embed_from_list(column_headings, data)
 
-        # Get indices for the required columns
-        try:
-            uid_index = header.index("Movement UID")
-            player_index = header.index("Player")
-            movement_type_index = header.index("Movement Type")
-            commanders_index = header.index("Commanders")
-            army_index = header.index("Army")
-            navy_index = header.index("Navy")
-            siege_index = header.index("Siege")
-            intent_index = header.index("Intent")
-            path_index = header.index("Path")
-            terrain_values_index = header.index("Terrain Values")
-            current_hex_index = header.index("Current Hex")
-            base_minutes_per_hex_index = header.index("Base Minutes per Hex")
-            terrain_mod_minutes_per_hex_index = header.index("Terrain Mod Minutes per Hex")
-            minutes_since_last_hex_index = header.index("Minutes since last Hex")
-            message_index = header.index("Message")
-        except ValueError:
-            return False
-
-        # Iterate through the rows and extract relevant information
-        for row in rows:
-            try:
-                if row[uid_index] == uid and row[player_index] == id:
-                    # Format and return the movement embed
-                    return self.embed_utils.set_info_embed_from_list(
-                        [
-                            "Embed Title",
-                            "Player",
-                            "Movement Type",
-                            "Intent",
-                            "Commanders",
-                            "Army",
-                            "Navy",
-                            "Siege",
-                            "Path of Hex IDs",
-                            "Terrain Values",
-                            "Current Hex ID",
-                            "Base Minutes Per Hex",
-                            "Terrain Mod Minutes Per Hex",
-                            "Minutes Since Last Hex",
-                            "Arrival Message"
-                        ],
-                        [
-                            f"Retrieved Movement: {uid}",
-                            row[player_index],
-                            row[movement_type_index],
-                            row[intent_index],
-                            row[commanders_index],
-                            row[army_index],
-                            row[navy_index],
-                            row[siege_index],
-                            row[path_index],
-                            row[terrain_values_index],
-                            row[current_hex_index],
-                            row[base_minutes_per_hex_index],
-                            row[terrain_mod_minutes_per_hex_index],
-                            row[minutes_since_last_hex_index],
-                            row[message_index]
-                        ],
-                    )
-            except IndexError:
-                print(f"Error: missing data - {row}")
-                return False
-            
-        return False
-    
     def retreat_movement(self, uid):
-        # Load movements data from Movements.csv
-        movements = self.local_sheet_utils.get_sheet_by_name("Movements")
-        
-        # Extract headers and data rows
-        headers = movements[0]
-        data = movements[1:]
-        
-        # Identify column indices based on provided headers
-        uid_index = headers.index("Movement UID")
-        current_hex_index = headers.index("Current Hex")
-        path_index = headers.index("Path")
-        terrain_values_index = headers.index("Terrain Values")
-        minutes_since_last_hex_index = headers.index("Minutes since last Hex")
-        intent_index = headers.index("Intent")
-        message_index = headers.index("Message")
-
-        # Flag to check if the movement was found and updated
-        movement_found = False
-
-        # Updated movements
-        updated_data = []
-
-        for row in data:
-            if row[uid_index] == uid:
-                # Found the movement
-                path = row[path_index].split(",")  # Split path into individual hexes
-                terrain = row[terrain_values_index].split(",") # Split terrain into individual values
-                current_hex = row[current_hex_index]  # Current hex
-                
-                # Find the index of the current hex in the path
-                if current_hex in path:
-                    current_hex_index_in_path = path.index(current_hex)
-                    
-                    row[intent_index] = "Retreat"
-
-                    # Create a reversed path starting from the current hex
-                    new_path = path[current_hex_index_in_path::-1]  # Reverse up to and including current hex
-                    row[path_index] = ",".join(new_path)  # Update the path
-
-                    # Create reversed terrain values starting from the current hex (value)
-                    new_terrain = terrain[current_hex_index_in_path::-1]
-                    row[terrain_values_index] = ",".join(new_terrain)  # Update the terrain values
-
-                    row[minutes_since_last_hex_index] = "0"  # Reset time to 0
-                    row[message_index] = "None"
-                    movement_found = True
-                else:
-                    print(f"Error: Current Hex {current_hex} not found in Path for UID {uid}")
-                    return False
-            
-            updated_data.append(row)
-
-        # If the movement is not found, raise an exception
-        if not movement_found:
-            print(f"Movement with UID {uid} not found in Movements.csv")
+        movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if movements_df is None or movements_df.empty:
             return False
-
-        # Write updated data back to the sheet
-        self.local_sheet_utils.update_sheet_by_name(
-            "Movements",
-            [headers] + updated_data
-        )
-        return True
+            
+        mask = movements_df['Movement UID'] == uid
+        if not mask.any():
+            return False
+            
+        row = movements_df.loc[mask].iloc[0]
+        path = row['Path'].split(', ')
+        current_hex = row['Current Hex']
+        
+        if current_hex not in path:
+            return False
+            
+        current_index = path.index(current_hex)
+        new_path = path[current_index::-1]
+        new_terrain = row['Terrain Values'].split(', ')[current_index::-1]
+        
+        movements_df.loc[mask, 'Path'] = ', '.join(new_path)
+        movements_df.loc[mask, 'Terrain Values'] = ', '.join(new_terrain)
+        movements_df.loc[mask, 'Intent'] = 'Retreat'
+        movements_df.loc[mask, 'Minutes since last Hex'] = 0
+        
+        return self.local_sheet_utils.update_sheet("Movements", movements_df)
 
     def cancel_movement(self, uid):
-        try:
-            # Load movements data from Movements.csv
-            movements = self.local_sheet_utils.get_sheet_by_name("Movements")
-            
-            # Extract headers and data rows
-            headers = movements[0]
-            data = movements[1:]
-            
-            # Identify column indices based on provided headers
-            uid_index = headers.index("Movement UID")
-
-            # Track if the UID is found
-            uid_found = False
-
-            # Filter out rows matching the specified uid
-            updated_data = []
-            for row in data:
-                if row[uid_index] == uid:
-                    uid_found = True
-                else:
-                    updated_data.append(row)
-            
-            # If the UID was not found, provide feedback or raise an exception
-            if not uid_found:
-                print(f"Warning: Movement UID {uid} not found.")
-                return False
-            
-            # Write updated data back to the sheet
-            self.local_sheet_utils.update_sheet_by_name(
-                "Movements",
-                [headers] + updated_data
-            )
-            return True
-        
-        except ValueError as e:
-            print(f"Error: {e}")
+        movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if movements_df is None:
             return False
-        except Exception as e:
-            print(f"Unexpected error: {e}")
+            
+        original_count = len(movements_df)
+        movements_df = movements_df[movements_df['Movement UID'] != uid]
+        if len(movements_df) == original_count:
             return False
-        
+            
+        return self.local_sheet_utils.update_sheet("Movements", movements_df)
+
     async def retrieve_path(self, ctx, origin, destination, avoid):
         movement_type = await self.collection_utils.ask_question(
             ctx, self.bot,
@@ -530,52 +234,15 @@ class MovementService:
 
         # Return the path and total time (impacted by terrain mod minutes per hex)
         return path, len(path) * terrain_mod_minutes_per_hex
-
-    def retrieve_hex_info(self, hex):
-        # Retrieve data from the "Map" sheet
-        map = self.local_sheet_utils.get_sheet_by_name("Map")
         
-        # Check if data was retrieved successfully
-        if not map:
-            return False
-        
-        # Extract header and rows
-        header = map[0]  # The first row is the header
-        rows = map[1:]   # Remaining rows contain data
-
-        # Get indices for the required columns
-        try:
-            hex_index = header.index("Hex")
-            terrain_index = header.index("Terrain")
-            holding_index = header.index("Holding Name")
-            road_index = header.index("Road")
-            river_index = header.index("River")
-        except ValueError:
-            return False
-
-        # Iterate through the rows and extract relevant information
-        for row in rows:
-            try:
-                if row[hex_index] == hex:
-                    # Format and return the movement embed
-                    return self.embed_utils.set_info_embed_from_list(
-                        [
-                            "Embed Title",
-                            "Terrain",
-                            "Holding Name",
-                            "Road Present",
-                            "River Present"
-                        ],
-                        [
-                            f"Retrieved Hex info for {hex}",
-                            row[terrain_index],
-                            row[holding_index],
-                            row[road_index],
-                            row[river_index]
-                        ],
-                    )
-            except IndexError:
-                print(f"Error: missing data - {row}")
-                return False
+    def retrieve_hex_info(self, hex_id):
+        map_df = self.local_sheet_utils.get_sheet_by_name("Map")
+        if map_df is None or map_df.empty:
+            return None
             
-        return False
+        hex_data = map_df[map_df['Hex'] == hex_id]
+        if hex_data.empty:
+            return None
+            
+        row = hex_data.iloc[0]
+        return self.embed_utils.create_hex_embed(row)

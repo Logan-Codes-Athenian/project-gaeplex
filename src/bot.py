@@ -80,16 +80,13 @@ async def notify_game_master():
 async def get_game_status():
     file_path = "src/sheets/Status.csv"
     try:
-        # Read the CSV file using pandas (no header assumed)
-        df = pd.read_csv(file_path, header=None, encoding='utf-8')
-        # Loop through rows to find the one where the first column is "Game Status"
-        for index, row in df.iterrows():
-            if row[0] == "Game Status":
-                return row[1]
+        # Let pandas use the first row as header
+        df = pd.read_csv(file_path, encoding='utf-8')
+        # Return the value in the 'Game Status' column from the first row
+        return df.iloc[0]["Game Status"]
     except Exception as e:
         print(f"Error reading game status from {file_path}: {e}")
         return None
-    return None
 
 # Use a fallback for TOKEN in case it's not in the environment
 client.run(os.environ.get("TOKEN", settings.TOKEN))
