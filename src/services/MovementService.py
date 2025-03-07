@@ -160,41 +160,53 @@ class MovementService:
 
     def retreat_movement(self, uid):
         movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        print(movements_df)
         if movements_df is None or movements_df.empty:
             return False
-            
+
         mask = movements_df['Movement UID'] == uid
+        print(mask)
         if not mask.any():
             return False
-            
+
         row = movements_df.loc[mask].iloc[0]
-        path = row['Path'].split(', ')
+        # Split on comma then strip whitespace
+        path = [p.strip() for p in row['Path'].split(',')]
         current_hex = row['Current Hex']
-        
+
+        print(current_hex)
+        print(path)
         if current_hex not in path:
             return False
-            
+
         current_index = path.index(current_hex)
         new_path = path[current_index::-1]
-        new_terrain = row['Terrain Values'].split(', ')[current_index::-1]
-        
+        new_terrain = [t.strip() for t in row['Terrain Values'].split(',')][current_index::-1]
+
         movements_df.loc[mask, 'Path'] = ', '.join(new_path)
         movements_df.loc[mask, 'Terrain Values'] = ', '.join(new_terrain)
         movements_df.loc[mask, 'Intent'] = 'Retreat'
         movements_df.loc[mask, 'Minutes since last Hex'] = 0
+
+        print(movements_df)
         
-        return self.local_sheet_utils.update_sheet_by_name("Movements", movements_df)
+        # Convert the DataFrame to list-of-lists (header first) before updating.
+        data_list = [movements_df.columns.tolist()] + movements_df.values.tolist()
+        print(data_list)
+        return self.local_sheet_utils.update_sheet_by_name("Movements", data_list)
 
     def cancel_movement(self, uid):
         movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        print(movements_df)
         if movements_df is None:
             return False
-            
+
         original_count = len(movements_df)
         movements_df = movements_df[movements_df['Movement UID'] != uid]
+        print(movements_df)
         if len(movements_df) == original_count:
             return False
-            
+
         return self.local_sheet_utils.update_sheet_by_name("Movements", movements_df)
 
     async def retrieve_path(self, ctx, origin, destination, avoid):

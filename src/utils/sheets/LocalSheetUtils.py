@@ -44,12 +44,17 @@ class LocalSheetUtils:
     def update_sheet_by_name(self, sheet_name, updated_data):
         file_path = f"{self.DIR}/{sheet_name}.csv"
         try:
-            # Assume updated_data is a list of lists with the first row as header.
-            header = updated_data[0]
-            data_rows = updated_data[1:]
-            df = pd.DataFrame(data_rows, columns=header)
+            # If updated_data is already a DataFrame, use it directly.
+            if isinstance(updated_data, pd.DataFrame):
+                df = updated_data
+            else:
+                # Assume updated_data is a list of lists with the first row as header.
+                header = updated_data[0]
+                data_rows = updated_data[1:]
+                df = pd.DataFrame(data_rows, columns=header)
             df.to_csv(file_path, index=False, encoding="utf-8")
             return True
         except Exception as e:
             print(f"Error updating {sheet_name}.csv: {e}")
             return False
+
