@@ -14,6 +14,7 @@ import pandas as pd
 class MovementService:
     def __init__(self, bot):
         self.bot = bot
+        self.movement_utils = MovementUtils()
         self.local_sheet_utils = LocalSheetUtils()
         self.embed_utils = EmbedUtils()
         self.pathfinding_utils = PathfindingUtils()
@@ -44,7 +45,7 @@ class MovementService:
         if path is None:
             return False
 
-        base_minutes_per_hex = MovementUtils.get_minutes_per_hex(movement)
+        base_minutes_per_hex = self.movement_utils.get_minutes_per_hex(movement)
 
         # Calculate terrain mod minutes per hex
         terrain_mod_minutes_per_hex = base_minutes_per_hex * (sum(terrain_values)/len(terrain_values))
