@@ -8,23 +8,23 @@ class AdminService:
 
     def update_google_sheets(self):
         sheet_names = ["Status", "Movements"]
-    
+
         for sheet in sheet_names:
             file_path = f"src/sheets/{sheet}.csv"
             try:
                 # Read the CSV file using pandas.
                 df = pd.read_csv(file_path, encoding='utf-8')
-                # Convert the DataFrame into a list of lists.
-                data = df.values.tolist()
+                # Prepend the header row (column names) to the list of data rows.
+                data = [df.columns.tolist()] + df.values.tolist()
             except Exception as e:
                 print(f"Error reading {file_path}: {e}")
                 return False
 
-            # Write the data to the corresponding Google Sheet.
+            # Write the data (including headers) to the corresponding Google Sheet.
             result = self.google_sheet_utils.overwrite_sheet_by_name(sheet, data)
             if not result:
                 return False
-                
+
         # All sheets updated successfully.
         return True
 
@@ -38,8 +38,11 @@ class AdminService:
             data = self.google_sheet_utils.get_sheet_by_name(sheet)
             if data:
                 print(f"Downloading {sheet}.")
-                # Convert the downloaded data (assumed to be a list of lists) into a DataFrame.
-                df = pd.DataFrame(data)
+                # Assume the first row is the header.
+                header = data[0]
+                rows = data[1:]
+                # Create the DataFrame with explicit column names.
+                df = pd.DataFrame(rows, columns=header)
                 file_path = f"{directory}/{sheet}.csv"
                 try:
                     df.to_csv(file_path, index=False, encoding='utf-8')
