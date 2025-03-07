@@ -14,7 +14,6 @@ import pandas as pd
 class MovementService:
     def __init__(self, bot):
         self.bot = bot
-        self.movement_utils = MovementUtils()
         self.local_sheet_utils = LocalSheetUtils()
         self.embed_utils = EmbedUtils()
         self.pathfinding_utils = PathfindingUtils()
@@ -45,7 +44,7 @@ class MovementService:
         if path is None:
             return False
 
-        base_minutes_per_hex = self.movement_utils.get_minutes_per_hex(movement)
+        base_minutes_per_hex = MovementUtils.get_minutes_per_hex(movement)
 
         # Calculate terrain mod minutes per hex
         terrain_mod_minutes_per_hex = base_minutes_per_hex * (sum(terrain_values)/len(terrain_values))
@@ -183,7 +182,7 @@ class MovementService:
         movements_df.loc[mask, 'Intent'] = 'Retreat'
         movements_df.loc[mask, 'Minutes since last Hex'] = 0
         
-        return self.local_sheet_utils.update_sheet("Movements", movements_df)
+        return self.local_sheet_utils.update_sheet_by_name("Movements", movements_df)
 
     def cancel_movement(self, uid):
         movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
@@ -195,7 +194,7 @@ class MovementService:
         if len(movements_df) == original_count:
             return False
             
-        return self.local_sheet_utils.update_sheet("Movements", movements_df)
+        return self.local_sheet_utils.update_sheet_by_name("Movements", movements_df)
 
     async def retrieve_path(self, ctx, origin, destination, avoid):
         movement_type = await self.collection_utils.ask_question(
