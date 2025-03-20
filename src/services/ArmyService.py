@@ -5,6 +5,7 @@ import random
 from utils.sheets.LocalSheetUtils import LocalSheetUtils
 from utils.misc.TemplateUtils import TemplateUtils
 from utils.misc.CollectionUtils import CollectionUtils
+from utils.misc.EmbedUtils import EmbedUtils
 
 class ArmyService:
     def __init__(self, bot):
@@ -12,6 +13,7 @@ class ArmyService:
         self.collection_utils = CollectionUtils()
         self.template_utils = TemplateUtils()
         self.local_sheet_utils = LocalSheetUtils()
+        self.embed_utils = EmbedUtils()
 
     async def create_template_army(self, ctx): 
         template = await self.collection_utils.ask_question(
