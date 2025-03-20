@@ -37,3 +37,28 @@ class TemplateUtils:
             }
         else:
             raise ValueError("The provided template does not match the expected format.")
+        
+    def parse_army_template(self, template):
+        pattern = re.compile(
+            r"Player:\s*(?P<player><@[\d]+>)\s*"  
+            r"Current Hex:\s*(?P<current>[A-Z]+\d+|[A-Za-z]+)\s*"
+            r"Commanders:\s*(?P<commanders>[^\n]+)\s*"
+            r"Troops:\s*(?P<troops>[^\n]+)\s*"
+            r"Navy:\s*(?P<navy>[^\n]+)\s*"
+            r"Siege:\s*(?P<siege>[^\n]+)\s*"
+        )
+
+        match = pattern.search(template)
+        
+        if match:
+            return {
+                "player": match.group("player"),
+                "current": match.group("current"),
+                "commanders": match.group("commanders").split(", "),
+                "troops": match.group("troops").split(", "),
+                "navy": match.group("navy").split(", "),
+                "siege": match.group("siege").split(", ")
+            }
+        else:
+            raise ValueError("The provided template does not match the expected format.")
+

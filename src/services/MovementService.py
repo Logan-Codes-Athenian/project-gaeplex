@@ -140,6 +140,27 @@ class MovementService:
         except KeyError as e:
             print(f"Missing column: {e}")
             return "Error retrieving user movements"
+        
+    def retrieve_user_movement(self, movement_uid, user_id):
+        movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")
+        if movements_df is None or movements_df.empty:
+            return None
+
+        movement = movements_df[movements_df['Movement UID'] == movement_uid]
+        if movement.empty:
+            return None
+
+        row = movement.iloc[0]  # row is a Pandas Series
+
+        # Verify the user_id matches the 'Player' field in the movement
+        if row['Player'] != user_id:
+            return None
+
+        # Convert the Series into column names and values for the embed
+        column_headings = list(row.index)
+        data = list(row.values)
+        
+        return self.embed_utils.set_info_embed_from_list(column_headings, data)
 
     def retrieve_movement(self, uid):
         movements_df = self.local_sheet_utils.get_sheet_by_name("Movements")

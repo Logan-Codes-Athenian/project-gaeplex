@@ -7,7 +7,7 @@ class AdminService:
         self.google_sheet_utils = GoogleSheetUtils()
 
     def update_google_sheets(self):
-        sheet_names = ["Status", "Movements"]
+        sheet_names = ["Status", "Movements", "Armies"]
 
         for sheet in sheet_names:
             file_path = f"src/sheets/{sheet}.csv"
@@ -29,7 +29,7 @@ class AdminService:
         return True
 
     def download_google_sheets(self):
-        sheet_names = ["Status", "Movements"]
+        sheet_names = ["Status", "Movements", "Armies"]
         directory = "src/sheets"
         if not os.path.exists(directory):
             os.makedirs(directory)

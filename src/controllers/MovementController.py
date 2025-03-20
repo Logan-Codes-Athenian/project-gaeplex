@@ -27,7 +27,7 @@ class MovementController(commands.Cog):
         else:
             await ctx.send(movements)
 
-    @commands.command()
+    @commands.command(name="retrieve-movement")
     async def retrieve(self, ctx, uid):
         if ctx.author.guild_permissions.administrator:
             movement = self.movement_service.retrieve_movement(uid)
