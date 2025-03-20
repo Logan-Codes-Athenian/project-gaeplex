@@ -48,7 +48,7 @@ class ArmyController(commands.Cog):
         else:
             await ctx.send("**Army Deletion success! :)**")
 
-    @commands.has_permissions(admministator=True)
+    @commands.has_permissions(administrator=True)
     @commands.command(name="army-status")
     async def status(self, ctx, uid, status):
         status_changed = self.army_service.change_army_status(uid)
