@@ -2,6 +2,7 @@ import discord
 import time
 import random
 
+from src.utils.sheets.LocalSheetUtils import LocalSheetUtils
 from utils.misc.TemplateUtils import TemplateUtils
 from utils.misc.CollectionUtils import CollectionUtils
 
@@ -10,6 +11,7 @@ class ArmyService:
         self.bot = bot
         self.collection_utils = CollectionUtils()
         self.template_utils = TemplateUtils()
+        self.local_sheet_utils = LocalSheetUtils()
 
     async def create_template_army(self, ctx): 
         template = await self.collection_utils.ask_question(
@@ -95,7 +97,7 @@ class ArmyService:
         if armies_df is None or armies_df.empty:
             return None
 
-        army = armies_df[armies_df['Army UID'] == armies_df]
+        army = armies_df[armies_df['Army UID'] == army_uid]
         if army.empty:
             return None
 
