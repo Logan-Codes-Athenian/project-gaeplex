@@ -10,7 +10,8 @@ intents = discord.Intents.all()
 # List of cogs to load
 cogs: list = [
     "controllers.MovementController", 
-    "controllers.AdminController", 
+    "controllers.AdminController",
+    "controllers.ArmyController", 
     "controllers.background.MovementBackgroundController"
 ]
 
