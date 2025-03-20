@@ -2,7 +2,7 @@ import discord
 import time
 import random
 
-from src.utils.sheets.LocalSheetUtils import LocalSheetUtils
+from utils.sheets.LocalSheetUtils import LocalSheetUtils
 from utils.misc.TemplateUtils import TemplateUtils
 from utils.misc.CollectionUtils import CollectionUtils
 
