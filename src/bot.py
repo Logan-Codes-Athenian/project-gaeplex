@@ -3,6 +3,7 @@ import discord
 import pandas as pd
 from discord.ext import commands
 from utils.sheets.GoogleSheetUtils import GoogleSheetUtils
+from utils.sheets.LocalSheetUtils import LocalSheetUtils
 import settings as settings
 
 intents = discord.Intents.all()
@@ -12,7 +13,8 @@ cogs: list = [
     "controllers.MovementController", 
     "controllers.AdminController",
     "controllers.ArmyController", 
-    "controllers.background.MovementBackgroundController"
+    "controllers.background.MovementBackgroundController",
+    "controllers.background.StatusBackgroundController"
 ]
 
 client = commands.Bot(command_prefix=settings.Prefix, help_command=None, intents=intents)
@@ -44,26 +46,16 @@ async def on_ready():
 
 async def download_sheets():
     google_sheet_utils = GoogleSheetUtils()
+    local_sheet_utils = LocalSheetUtils()
     # Download sheets.
-    sheet_names = ["Status", "Movements", "Armies", "Map"]
+    sheet_names = ["Status", "Movements", "Armies", "StatusTimers", "Map"]
 
-    # Ensure the directory exists
-    directory = "src/sheets"
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    
     for sheet in sheet_names:
         data = google_sheet_utils.get_sheet_by_name(sheet)
         if data:
             print(f"Downloading {sheet}.")
-            # Convert the downloaded data (list of lists) into a DataFrame.
-            df = pd.DataFrame(data)
-            # Write the DataFrame to CSV. Using header=False to mimic original behavior.
-            file_path = f"{directory}/{sheet}.csv"
-            try:
-                df.to_csv(file_path, index=False, header=False, encoding='utf-8')
-            except Exception as e:
-                print(f"Error writing {file_path}: {e}")
+            # Use LocalSheetUtils to write the data safely.
+            local_sheet_utils.update_sheet_by_name(sheet, data)
 
 async def notify_game_master():
     # Fetch the GameMaster's user and send a notification

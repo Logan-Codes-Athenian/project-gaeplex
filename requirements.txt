@@ -27,3 +27,4 @@ six==1.16.0
 urllib3==2.2.3  
 yarl==1.17.2  
 pandas==2.2.3
+FileLock==3.18.0

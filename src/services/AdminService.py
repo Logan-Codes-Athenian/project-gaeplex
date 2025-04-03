@@ -1,23 +1,27 @@
 import os
 import pandas as pd
 from utils.sheets.GoogleSheetUtils import GoogleSheetUtils
+from utils.sheets.LocalSheetUtils import LocalSheetUtils
 
 class AdminService:
     def __init__(self):
         self.google_sheet_utils = GoogleSheetUtils()
 
     def update_google_sheets(self):
-        sheet_names = ["Status", "Movements", "Armies"]
+        sheet_names = ["Status", "Movements", "Armies", "StatusTimers"]
+        local_sheet_utils = LocalSheetUtils()
 
         for sheet in sheet_names:
-            file_path = f"src/sheets/{sheet}.csv"
             try:
-                # Read the CSV file using pandas.
-                df = pd.read_csv(file_path, encoding='utf-8')
+                # Use LocalSheetUtils to read the CSV safely.
+                df = local_sheet_utils.get_sheet_by_name(sheet)
+                if df is None or df.empty:
+                    print(f"Error: {sheet} is empty or missing.")
+                    return False
                 # Prepend the header row (column names) to the list of data rows.
                 data = [df.columns.tolist()] + df.values.tolist()
             except Exception as e:
-                print(f"Error reading {file_path}: {e}")
+                print(f"Error reading {sheet}: {e}")
                 return False
 
             # Write the data (including headers) to the corresponding Google Sheet.

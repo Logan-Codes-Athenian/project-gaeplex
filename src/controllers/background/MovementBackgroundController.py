@@ -27,6 +27,7 @@ class MovementBackgroundController(commands.Cog):
             uid = row["Movement UID"]
             player = row["Player"]
             movement_type = row["Movement Type"]
+            army_uid = row["Army UID"]
             commanders = row["Commanders"]
             army = row["Army"]
             navy = row["Navy"]
@@ -43,6 +44,7 @@ class MovementBackgroundController(commands.Cog):
             self.movements[uid] = {
                 'player': player,
                 'movement_type': movement_type,
+                'army_uid': army_uid,
                 'commanders': commanders,
                 'army': army,
                 'navy': navy,
@@ -72,11 +74,10 @@ class MovementBackgroundController(commands.Cog):
         self.update_in_memory_data_from_sheet(df)
 
         updated_data = []
-        # Iterate through your in-memory movements dictionary
-        for uid, movement in self.movements.items():
+        # Iterate over a static copy of movements to avoid dictionary size changes
+        for uid, movement in list(self.movements.items()):
             # Ensure path and terrain_values are lists of strings
             path = [hex.strip() for hex in movement['path']]
-            # Note: if terrain_values is already a list, no need to split it again
             terrain_values = movement['terrain_values']
             current_hex = movement['current_hex'].strip()
             terrain_mod_minutes_per_hex = movement['terrain_mod_minutes_per_hex']
@@ -91,11 +92,15 @@ class MovementBackgroundController(commands.Cog):
                     continue
 
                 if current_index < len(path) - 1:
+                    # Move to the next hex in the path.
                     current_hex = path[current_index + 1]
                     minutes_since_last_hex = 0
-                else:
+                    self.update_army_position(movement['army_uid'], current_hex, "Moving")
+                elif current_index == len(path) - 1:  # Final hex condition.
                     await self.complete_movement(uid)
-                    return  # Optionally, exit early if a movement is completed
+                    return  
+                    # Changed from Continue, since i would need to reload data from sheet to memory.
+                    # This is done at the start of this method...maybe look into as an improvement.
 
             # Update the movement in memory
             self.movements[uid].update({
@@ -108,6 +113,7 @@ class MovementBackgroundController(commands.Cog):
                 uid,
                 movement['player'],
                 movement['movement_type'],
+                movement['army_uid'],
                 movement['commanders'],
                 movement['army'],
                 movement['navy'],
@@ -124,16 +130,13 @@ class MovementBackgroundController(commands.Cog):
 
         # Merge updated data with any rows from the DataFrame that aren't in memory
         header = list(df.columns)
-        # Convert the DataFrame to a list of dictionaries for easier lookup
         sheet_rows = df.to_dict(orient="records")
         for row in sheet_rows:
             uid = row["Movement UID"]
             if uid not in self.movements:
-                # Convert the dictionary back to a list matching the header order
                 merged_row = [row.get(col, "") for col in header]
                 updated_data.append(merged_row)
 
-        # Write the header plus updated rows back to the sheet
         all_data = [header] + updated_data
         self.local_sheet_utils.update_sheet_by_name("Movements", all_data)
 
@@ -152,9 +155,9 @@ class MovementBackgroundController(commands.Cog):
                 return
 
         # Send the movement completion message in the channel
-        if data['message'] == "None":
+        if data['message'] == ['None']:
             message_text = (
-                f"- Locals spot {'Ships' if data['navy'] != 'None' else 'Men'} arriving at {destination}. "
+                f"- Locals spot {'Ships' if data['navy'] != ['None'] else 'Men'} arriving at {destination}. "
                 f"They intend to: {data['intent']} || {uid} ||"
             )
         else:
@@ -187,7 +190,8 @@ class MovementBackgroundController(commands.Cog):
                     "Terrain Values for Hexes along Path",
                     "Base Minutes Per Hex",
                     "Terrain Mod Minutes Per Hex",
-                    "Movement UID"
+                    "Movement UID",
+                    "Army UID"
                 ],
                 [
                     f"Movement from {data['path'][0]} to {destination}.",
@@ -202,46 +206,73 @@ class MovementBackgroundController(commands.Cog):
                     data['terrain_values'],
                     data['base_minutes_per_hex'],
                     data['terrain_mod_minutes_per_hex'],
-                    uid
+                    uid,
+                    data['army_uid']
                 ]
             )
             await user.send("**Your movement is finished pookie :)**", embed=embed)
         except discord.errors.Forbidden:
             print(f"Can't DM user: {user}.")
 
+        # Update the Army's position and status.
+        self.update_army_position(data['army_uid'], destination, data['intent'])
+
         # Remove the movement from memory
         if uid in self.movements:
             del self.movements[uid]
+            print(f"Movement {uid} removed from memory.")
 
-        # Update the sheet: remove the row with this uid
+        # Update the Movements CSV to permanently remove this movement
         df = self.local_sheet_utils.get_sheet_by_name("Movements")
         if df is None or df.empty:
+            print("**complete_movement Error: Movements sheet is empty.**")
             return
 
-        # Remove duplicate header rows if any
-        if "Movement UID" in df.columns:
-            df = df[df["Movement UID"] != "Movement UID"]
+        print(f"Before filtering: {df}")
+        df["Movement UID"] = df["Movement UID"].astype(str).str.strip()
+        uid = str(uid).strip()
+        df = df[df["Movement UID"] != uid]
+        print(f"After filtering: {df}")
 
-        # Filter out the row with the given UID
-        updated_df = df[df["Movement UID"] != uid]
+        try:
+            self.local_sheet_utils.update_sheet_by_name("Movements", df)
+            print(f"Successfully removed movement {uid} and updated Movements.csv.")
+        except Exception as e:
+            print(f"Error writing to Movements.csv: {e}")
 
-        # Convert the updated DataFrame back to a list of lists (header + data)
-        header = list(updated_df.columns)
-        data_rows = updated_df.values.tolist()
-        all_data = [header] + data_rows
-        self.local_sheet_utils.update_sheet_by_name("Movements", all_data)
-    
+    def update_army_position(self, army_uid, new_hex, new_status):
+        armies_df = self.local_sheet_utils.get_sheet_by_name("Armies")
+        if armies_df is None or armies_df.empty:
+            print("Error: Could not retrieve Armies data.")
+            return
+
+        # Locate the row(s) where the 'Army UID' matches the provided army_uid
+        row_index = armies_df.index[armies_df['Army UID'] == army_uid]
+        if row_index.empty:
+            print(f"No matching army found for UID {army_uid}.")
+            return
+
+        # Update the army's current hex and status
+        armies_df.loc[row_index, 'Current Hex'] = new_hex
+        armies_df.loc[row_index, 'Status'] = new_status
+
+        try:
+            self.local_sheet_utils.update_sheet_by_name("Armies", armies_df)
+            print(f"Updated Army {army_uid} with new hex {new_hex} and status {new_status}.")
+        except Exception as e:
+            print(f"Error updating army status: {e}")
+        
     async def search_map_for_destination(self, destination):
         # Iterate through each row in the map data
         for row in self.map:
             if row["Hex"] == destination:
-                # Check if a Holding Name exists for the current hex
-                if row.get("Holding Name"):  # Ensure the key exists in the dictionary
-                    return row["Holding Name"]
-        
-        # If no Holding Name is found, return the hex ID
+                holding = row.get("Holding Name")
+                # Only return the holding name if it is not "FALSE" (i.e. a valid name)
+                if holding and holding != "FALSE":
+                    return holding
+        # If no valid Holding Name is found, return the hex ID
         return destination
-    
+
     def is_paused(self):
         sheet_values = self.local_sheet_utils.get_sheet_by_name("Status")
 
@@ -276,6 +307,7 @@ class MovementBackgroundController(commands.Cog):
                 self.movements[uid] = {
                     'player': row["Player"],
                     'movement_type': row["Movement Type"],
+                    'army_uid': row["Army UID"],
                     'commanders': row["Commanders"],
                     'army': row["Army"],
                     'navy': row["Navy"],

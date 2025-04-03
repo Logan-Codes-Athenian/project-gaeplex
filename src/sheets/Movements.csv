@@ -1,2 +1,3 @@
-Movement UID,Player,Movement Type,Army,Navy,Siege,Intent,Path,Current Hex,Minutes per Hex,Minutes since last Hex
-<@788357036127158312>_1736527884,<@788357036127158312>,army,['1000 Monks'],['None'],['None'],pray,"['B1', 'A1']",B1,1,0
+Movement UID,Player,Movement Type,Army UID,Commanders,Army,Navy,Siege,Intent,Path,Terrain Values,Current Hex,Base Minutes per Hex,Terrain Mod Minutes per Hex,Minutes since last Hex,Message
+831_1742328185,<@355458380510527488>,army,1_1,Prince Joseph of Castille,"500 Archer, 500 Knight, 400 Frankish Knight, 920 Man-at-arms, 900 Levies",,,Retreat,"AS09,AT08,AT09,AS09","1,1,1,1",AS09,30,30,1,The forces of <@&1255121289539092533> arrive at their destination in their homeland
+770_1742410112,<@798699336917057536>,army,2_2,Princes of Léon,1 Léonese Army,,,Winter in Merida,"AG10,AF11,AF12,AE12,AE13,AF14,AG14,AH15,AI14,AJ14,AK14,AL14","1,1,1,1,1,1,1,1,1,1,1,1",AG10,30,30,21,The forces of <@&1234490484668370975> arrive at **Merida** to camp for winter 

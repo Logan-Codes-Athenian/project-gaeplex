@@ -32,17 +32,28 @@ class MovementService:
         try:
             movement = self.template_utils.parse_movement_template(template)
         except ValueError:
+            print("ERROR WHILE PARSING MOVEMENT TEMPLATE")
+            return False
+        
+        # Validate Army UID from movement.
+        # If it exists, get the troops, naval and siege.
+        success, commanders, current_hex, troops, navy, siege = self.movement_utils.get_army_breakdown(movement.get("army_id"))
+        if not success or not current_hex:
+            print("ERROR WHILE GETTING ARMY BREAKDOWN")
             return False
 
-        movement_type = "army" if movement.get("navy") == ['None'] else "fleet"
+        # Determine the movement type based on the Navy breakdown:
+        # If the navy breakdown is ["None"], then it's a land-based army; otherwise, it's a fleet.
+        movement_type = "army" if navy == ["nan"] else "fleet"
 
         # Pathfind
         path, terrain_values = self.pathfinding_utils.retrieve_movement_path(
-            movement_type, movement.get("origin"),
+            movement_type, current_hex,
             movement.get("destination"), movement.get("avoid")
         )
 
         if path is None:
+            print("ERROR WHILE RETRIEVING PATH")
             return False
 
         base_minutes_per_hex = self.movement_utils.get_minutes_per_hex(movement)
@@ -53,26 +64,23 @@ class MovementService:
         movement_uid = f"{random.randint(0, 1000)}_{int(time.time())}"
 
         # Prepare data for sheet
-        commanders = ', '.join(movement.get("commanders")) if movement.get("commanders") else "None"
-        army = ', '.join(movement.get("army")) if movement.get("army") else "None"
-        navy = ', '.join(movement.get("navy")) if movement.get("navy") else "None"
-        siege = ', '.join(movement.get("siege")) if movement.get("siege") else "None"
         path_str = ', '.join(path) if path else "None"
         terrain_str = ', '.join(map(str, terrain_values)) if terrain_values else "None"
 
-        success = await self.announce_departure(movement, movement_uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy)
+        success = await self.announce_departure(movement, current_hex, movement_uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy)
         if not success:
+            print("ERROR WHILE ANNOUNCING DEPARTURE.")
             return False
 
         # Create movement in sheet
         return self.local_sheet_utils.write_to_row(
             "Movements",
-            [movement_uid, movement.get("player"), movement_type, commanders, army, navy, siege,
+            [movement_uid, movement.get("player"), movement_type, movement.get("army_id"), commanders, troops, navy, siege,
             movement.get("intent"), path_str, terrain_str, path[0] if path else "None", base_minutes_per_hex, 
             terrain_mod_minutes_per_hex, 0, movement.get("arrival")]
         )
     
-    async def announce_departure(self, movement, uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy):
+    async def announce_departure(self, movement, origin, uid, path, terrain_values, base_minutes_per_hex, terrain_mod_minutes_per_hex, navy):
         channel_id = settings.MovementsChannel
         channel = self.bot.get_channel(channel_id)
         if channel is None:
@@ -82,10 +90,13 @@ class MovementService:
                 print(f"Error fetching channel: {e}")
                 return False
         
-        total_minutes = len(path) * terrain_mod_minutes_per_hex
+        total_minutes = len(path)-1 * terrain_mod_minutes_per_hex
         message = movement.get("departure")
         if message == "None":
-            await channel.send(f"- {'Ships' if navy != 'None' else 'Men'} depart {movement.get('origin')} || UID: {uid}, ETC: {total_minutes} minutes ||")
+            print(navy)
+            naval_movement = True if navy != "['nan']" else False
+            print(naval_movement)
+            await channel.send(f"- {'Ships' if naval_movement == True else 'Men'} depart {origin} || UID: {uid}, ETC: {total_minutes} minutes ||")
         else:
             await channel.send(f"- {message} || UID: {uid}, ETC: {total_minutes} minutes ||")
 
@@ -115,7 +126,7 @@ class MovementService:
             
         try:
             return "\n".join(
-                f"UID: {row['Movement UID']}, Player: {row['Player']}, Type: {row['Movement Type']}, "
+                f"Movement UID: {row['Movement UID']}, Army UID: {row['Army UID']}, Player: {row['Player']}, Type: {row['Movement Type']}, "
                 f"Terrain Values: {row['Terrain Values']}, Minutes/Hex: {row['Terrain Mod Minutes per Hex']}, Message: {row['Message']}"
                 for _, row in movements_df.iterrows()
             )
@@ -134,7 +145,7 @@ class MovementService:
             
         try:
             return "\n".join(
-                f"UID: {row['Movement UID']}, Path: [{row['Path']}], Terrain: [{row['Terrain Values']}], Intent: {row['Intent']}"
+                f"Movement UID: {row['Movement UID']}, Army UID: {row['Army UID']}, Path: [{row['Path']}], Terrain: [{row['Terrain Values']}], Intent: {row['Intent']}"
                 for _, row in user_movements.iterrows()
             )
         except KeyError as e:
@@ -248,9 +259,9 @@ class MovementService:
 
         # Determine base minutes per hex based on composition
         if movement_type == "fleet":
-            base_minutes_per_hex = 1
+            base_minutes_per_hex = 30
         else:
-            base_minutes_per_hex = 2 if siege.lower() in ["n", "no"] else 3
+            base_minutes_per_hex = 30 if siege.lower() in ["n", "no"] else 60
 
         # Retrieve the movement path
         path, terrain_values = self.pathfinding_utils.retrieve_movement_path(

@@ -39,11 +39,11 @@ class ArmyService:
         siege = ', '.join(army.get("siege")) if army.get("siege") else "None"
         status = "Stationary" # Defaults to Stationary. Can be defending, moving, ambushing, raiding, besieging, disembarking, embarking
 
-        # Create army in sheet
+        # Create army in sheet and return uid for QOL
         return self.local_sheet_utils.write_to_row(
             "Armies",
             [army_uid, player, current, commanders, troops, navy, siege, status]
-        )
+        ), army_uid
     
     def retrieve_all_armies(self):
         armies_df = self.local_sheet_utils.get_sheet_by_name("Armies")
@@ -142,6 +142,3 @@ class ArmyService:
 
         # Write the updated DataFrame back to the CSV
         return self.local_sheet_utils.update_sheet_by_name("Armies", armies_df)
-
-    def announce_army_status_change(self, uid, status):
-        pass

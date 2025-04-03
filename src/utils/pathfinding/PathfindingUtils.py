@@ -8,9 +8,11 @@ class PathfindingUtils:
         self.local_sheet_utils = LocalSheetUtils()
 
     def retrieve_digital_map(self):
-        file_path = f"{self.local_sheet_utils.DIR}/Map.csv"
         try:
-            df = pd.read_csv(file_path, encoding="utf-8")
+            df = self.local_sheet_utils.get_sheet_by_name("Map")
+            if df is None or df.empty:
+                print("Error: Map is empty or missing.")
+                return []
             # Convert the DataFrame to a list of dictionaries
             map_data = df.to_dict(orient='records')
             return map_data

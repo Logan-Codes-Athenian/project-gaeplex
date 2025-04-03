@@ -9,11 +9,11 @@ class ArmyController(commands.Cog):
     @commands.has_permissions(administrator=True)
     @commands.command()
     async def army(self, ctx):
-        success = await self.army_service.create_template_army(ctx)
+        success, army_uid = await self.army_service.create_template_army(ctx)
         if not success:
             await ctx.send("**Failure :( Check the Template is correct.**")
         else:
-            await ctx.send("**Success! Good Boy :)**")
+            await ctx.send(f"**Success, Army ID: {army_uid} Created! :)**")
 
     @commands.command()
     async def armies(self, ctx):
@@ -51,14 +51,9 @@ class ArmyController(commands.Cog):
     @commands.has_permissions(administrator=True)
     @commands.command(name="army-status")
     async def status(self, ctx, uid, status):
-        status_changed = self.army_service.change_army_status(uid)
+        status_changed = self.army_service.change_army_status(uid, status)
         if not status_changed:
             await ctx.send("status change failed.")
-            return
-        
-        announce_status_change = self.army_service.announce_army_status_change(uid, status)
-        if not announce_status_change:
-            await ctx.send("status change announcement failed.")
             return
         
         await ctx.send("Status Change Completed!")
