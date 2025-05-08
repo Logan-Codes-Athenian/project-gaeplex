@@ -1,5 +1,6 @@
 import re
 import discord
+import pandas as pd
 import settings as settings
 from discord.ext import commands, tasks
 from utils.sheets.LocalSheetUtils import LocalSheetUtils
@@ -155,9 +156,14 @@ class MovementBackgroundController(commands.Cog):
                 return
 
         # Send the movement completion message in the channel
-        if data['message'] == ['None']:
+        print(f" {'===='*50} {data['message']}")
+        msg = data['message']
+        if pd.isna(msg):
+
+            has_navy = True if data['navy'] != "['nan']" else False
+            unit_type = 'Ships' if has_navy else 'Men'
             message_text = (
-                f"- Locals spot {'Ships' if data['navy'] != ['None'] else 'Men'} arriving at {destination}. "
+                f"- Locals spot {unit_type} arriving at {destination}. "
                 f"They intend to: {data['intent']} || {uid} ||"
             )
         else:

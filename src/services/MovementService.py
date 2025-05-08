@@ -90,13 +90,12 @@ class MovementService:
                 print(f"Error fetching channel: {e}")
                 return False
         
-        total_minutes = len(path)-1 * terrain_mod_minutes_per_hex
+        total_minutes = (len(path) - 1) * terrain_mod_minutes_per_hex
         message = movement.get("departure")
         if message == "None":
-            print(navy)
-            naval_movement = True if navy != "['nan']" else False
-            print(naval_movement)
-            await channel.send(f"- {'Ships' if naval_movement == True else 'Men'} depart {origin} || UID: {uid}, ETC: {total_minutes} minutes ||")
+            # Compare navy as a list, not as a string.
+            naval_movement = False if navy == ["nan"] else True
+            await channel.send(f"- {'Ships' if naval_movement else 'Men'} depart {origin} || UID: {uid}, ETC: {total_minutes} minutes ||")
         else:
             await channel.send(f"- {message} || UID: {uid}, ETC: {total_minutes} minutes ||")
 
@@ -113,7 +112,7 @@ class MovementService:
                 embed=self.embed_utils.set_info_embed_from_list(
                     ["Movement UID", "Path", "Base Minutes per Hex", "Terrain Mod Minutes per Hex"],
                     [uid, " → ".join(path), base_minutes_per_hex, terrain_mod_minutes_per_hex]
-                    )
+                )
             )
         except discord.errors.Forbidden:
             print("Cannot DM user")
