@@ -48,7 +48,7 @@ async def download_sheets():
     google_sheet_utils = GoogleSheetUtils()
     local_sheet_utils = LocalSheetUtils()
     # Download sheets.
-    sheet_names = ["Status", "Movements", "Armies", "StatusTimers", "Map"]
+    sheet_names = ["Status", "Movements", "Armies", "StatusTimers", "Map", "Seasons"]
 
     for sheet in sheet_names:
         data = google_sheet_utils.get_sheet_by_name(sheet)

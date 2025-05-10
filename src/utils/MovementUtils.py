@@ -5,36 +5,64 @@ class MovementUtils:
         self.local_sheet_utils = LocalSheetUtils()
 
     def get_minutes_per_hex(self, movement):
-        # Determine base minutes per hex based on composition.
-        print(f"get_minutes_per_hex for:\n{movement}")
+        # 1) Load Seasons.csv
+        df = self.local_sheet_utils.get_sheet_by_name("Seasons")
+        if df is None or df.empty:
+            raise RuntimeError("Could not load Seasons.csv")
 
-        print(movement.get("navy"))
+        # 2) Find which column is marked 'x'
+        cs = df[df["Army Type"] == "Current Season"]
+        if cs.empty:
+            raise RuntimeError("No 'Current Season' row in Seasons.csv")
+        cs = cs.iloc[0]
 
-        # Check if navy is not equal to ['None']
-        if movement.get("navy") != ['None']:
-            print(30)
-            return 1 # TODO: CHANGE THIS TO 30 AGAIN
-        
-        # Since army is already a list, no need to split
+        season_col = None
+        for col in ["Spring", "Summer", "Autumn", "Winter", "Custom"]:
+            if str(cs[col]).strip().lower() == "x":
+                season_col = col
+                break
+        if season_col is None:
+            raise RuntimeError("No season selected in Seasons.csv")
+
+        # 3) Decide which Army Type to look up
+        #    Note: movement.get("navy") etc. are lists, possibly ['None'] or empty.
+        has_navy  = bool(movement.get("navy")) and movement.get("navy") != ["None"]
+        has_siege = bool(movement.get("siege")) and movement.get("siege") != ["None"]
+
+        # cavalry-only: every unit mention is cavalry-like AND no siege
         army_units = movement.get("army", [])
-        print(f"Army Units:\n{army_units}")
-        cav_terms = {"cavalry", "cav", "upstart noble band", "frankish knights"}
-        
-        # Check if army is not empty and all elements are cavalry-related
-        cav_only = bool(army_units) and all(
-            any(cav in unit.lower() for cav in cav_terms) for unit in army_units
+        cav_terms  = {"cavalry", "cav", "upstart noble band", "frankish knights"}
+        cav_only   = (
+            army_units
+            and all(any(c in unit.lower() for c in cav_terms) for unit in army_units)
+            and not has_siege
         )
-        print(f"Cav Only: {cav_only}")
-        
-        if cav_only and movement.get("siege") == ['None']:
-            print(15)
-            return 1 # TODO: CHANGE THIS TO 15 AGAIN
-        elif movement.get("siege") != ['None']:
-            print(60)
-            return 1 # TODO: CHANGE THIS TO 60 AGAIN
+
+        if has_navy:
+            lookup_row = "has Ships"
+        elif has_siege:
+            lookup_row = "has Siege"
+        elif cav_only:
+            lookup_row = "cavalry"
         else:
-            print(30)
-            return 1 # TODO: CHANGE THIS TO 30 AGAIN
+            lookup_row = "army"
+
+        # 4) Extract the minutes-per-hex from the DataFrame row
+        series = df.loc[df["Army Type"] == lookup_row, season_col]
+        if series.empty:
+            raise RuntimeError(f"No row '{lookup_row}' in Seasons.csv")
+        
+        raw = series.iloc[0]
+        try:
+            # allow floats, strings like "1.0", numeric types, etc.
+            minutes = int(float(raw))
+        except Exception:
+            raise RuntimeError(
+                f"Invalid numeric value in Seasons.csv at {lookup_row}/{season_col}: {raw!r}"
+            )
+        
+        return minutes
+
         
     def get_army_breakdown(self, army_uid):
         # Retrieve the Armies sheet as a DataFrame

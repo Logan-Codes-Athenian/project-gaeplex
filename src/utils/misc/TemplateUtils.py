@@ -53,4 +53,24 @@ class TemplateUtils:
             }
         else:
             raise ValueError("The provided template does not match the expected format.")
+        
+    def parse_custom_season_template(self, template):
+        pattern = re.compile(
+            r"Army:\s*(?P<army>\d+)\s*"
+            r"Army with Siege:\s*(?P<siege>\d+)\s*"
+            r"Naval movement:\s*(?P<naval>\d+)\s*"
+            r"Cavalry Only:\s*(?P<cavalry>\d+)\s*"
+        )
+
+        match = pattern.search(template)
+        
+        if match:
+            return {
+                "army": match.group("army"),
+                "siege": match.group("siege"),
+                "naval": match.group("naval"),
+                "cavalry": match.group("cavalry")
+            }
+        else:
+            raise ValueError("The provided template does not match the expected format.")
 
