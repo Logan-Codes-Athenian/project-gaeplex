@@ -75,7 +75,7 @@ class PathfindingUtils:
         path = self.reconstruct_path(came_from, current)
         return [self.terrain_movement_cost(movement_type, hex_map[hex_id]) for hex_id in path]
 
-    # Determine movement cost based on terrain, with special rules for Mountains
+    # Determine movement cost based on terrain, with special rules for Mountains and The Wall
     def terrain_movement_cost(self, movement_type, hex_data):
         terrain = hex_data["Terrain"]
         print(hex_data)
@@ -87,7 +87,7 @@ class PathfindingUtils:
         if movement_type == "army":
             if has_river == True and (has_road == False and has_holding == False):
                 return float('inf')
-            if terrain == "Mountains":
+            if terrain == "Mountains" or terrain == "The Wall":
                 return 3 if has_road or has_holding else float('inf')
             if terrain == "Sea":
                 return float('inf')
