@@ -15,6 +15,7 @@ class MovementBackgroundController(commands.Cog):
         self.map = self.path_finding_utils.retrieve_digital_map()
         self.embed_utils = EmbedUtils()
         self.movements = {}  # Dictionary to store movements in memory
+        self.collisions = {} # hex_id -> set(of army_uids) GM has been notified on
         self.load_movements()  # Load movements when the bot starts
         self.update_movements.start()  # Start the background task
 
@@ -84,6 +85,8 @@ class MovementBackgroundController(commands.Cog):
             terrain_mod_minutes_per_hex = movement['terrain_mod_minutes_per_hex']
             minutes_since_last_hex = movement['minutes_since_last_hex'] + 1  # Increment minutes
 
+            self.update_army_position(movement['army_uid'], current_hex, "Moving")
+
             # Check if it's time to move to the next hex
             if minutes_since_last_hex >= terrain_mod_minutes_per_hex:
                 try:
@@ -96,7 +99,6 @@ class MovementBackgroundController(commands.Cog):
                     # Move to the next hex in the path.
                     current_hex = path[current_index + 1]
                     minutes_since_last_hex = 0
-                    self.update_army_position(movement['army_uid'], current_hex, "Moving")
                 elif current_index == len(path) - 1:  # Final hex condition.
                     await self.complete_movement(uid)
                     return  
@@ -139,6 +141,7 @@ class MovementBackgroundController(commands.Cog):
                 updated_data.append(merged_row)
 
         all_data = [header] + updated_data
+        await self.check_for_army_collision(updated_data)
         self.local_sheet_utils.update_sheet_by_name("Movements", all_data)
 
     async def complete_movement(self, uid):
@@ -251,6 +254,10 @@ class MovementBackgroundController(commands.Cog):
         if armies_df is None or armies_df.empty:
             print("Error: Could not retrieve Armies data.")
             return
+        
+        # Ensure both are strings for comparison
+        armies_df['Army UID'] = armies_df['Army UID'].astype(str)
+        army_uid = str(army_uid)
 
         # Locate the row(s) where the 'Army UID' matches the provided army_uid
         row_index = armies_df.index[armies_df['Army UID'] == army_uid]
@@ -366,32 +373,123 @@ class MovementBackgroundController(commands.Cog):
             del self.movements[uid]
     
     async def check_for_army_collision(self, updated_data):
-        # Check for armies on the same hex and notify GameMaster
-        hex_army_map = {}  # Map hex IDs to lists of army UIDs
+        """
+        Includes both moving and stationary armies in collision detection.
+        """
+        hex_army_map = {}
+
+        # 1. Moving armies from updated_data (Movements sheet)
         for row in updated_data:
-            uid = row[0]
-            current_hex = row[10]  # Column index for current_hex in updated_data
-            if current_hex not in hex_army_map:
-                hex_army_map[current_hex] = []
-            hex_army_map[current_hex].append(uid)
+            uid = row[3]  # Army UID
+            hex_id = row[11]  # Current Hex
+            hex_army_map.setdefault(hex_id, set()).add(uid)
 
-        # Notify GameMaster about armies on the same hex
+        # 2. Include non-moving armies from Armies sheet
+        armies_df = self.local_sheet_utils.get_sheet_by_name("Armies")
+        if armies_df is not None and not armies_df.empty:
+            armies_df['Army UID'] = armies_df['Army UID'].astype(str)
+            armies_df['Current Hex'] = armies_df['Current Hex'].astype(str)
+            armies_df['Status'] = armies_df['Status'].astype(str)
+
+            for _, row in armies_df.iterrows():
+                uid = row["Army UID"]
+                hex_id = row["Current Hex"]
+                status = row["Status"].lower()
+
+                if status not in ["moving"]:  # Only include non-moving units
+                    hex_army_map.setdefault(hex_id, set()).add(uid)
+
+        current_collisions = {}
+
         for hex_id, army_uids in hex_army_map.items():
-            if len(army_uids) > 1:  # Only notify if multiple armies are on the same hex
-                await self.notify_gm_army_collision(hex_id, army_uids)
+            if len(army_uids) < 2:
+                if hex_id in self.collisions:
+                    await self.notify_gm_army_departure(hex_id, set(self.collisions[hex_id]), army_uids)
+                    del self.collisions[hex_id]
+                continue
 
-    async def notify_gm_army_collision(self, hex_id, army_uids):
-        # Fetch the GameMaster's user and send a notification
-        id = settings.GamemasterID
+            current_set = army_uids
+            prev_set = self.collisions.get(hex_id, set())
+
+            if not prev_set:
+                await self.notify_gm_army_collision(hex_id, current_set)
+            else:
+                new_armies = current_set - prev_set
+                if new_armies:
+                    await self.notify_gm_army_collision(hex_id, current_set, initial=False)
+
+            current_collisions[hex_id] = current_set
+
+        self.collisions = current_collisions
+
+    async def notify_gm_army_collision(self, hex_id, army_uids, initial: bool = True):
         try:
-            user = await self.bot.fetch_user(id)
-            await user.send(
-                f"**Army Collision Notification**\n"
-                f"``Multiple armies found on tile {hex_id}!``\n"
-                f"Movement UIDs:\n- {', '.join(army_uids)}"
-            )
-        except discord.errors.HTTPException as e:
-            print(f"Error: Unable to fetch user with ID {id}. Exception: {e}")
+            gm = await self.bot.fetch_user(settings.GamemasterID)
+        except Exception as e:
+            print(f"Error fetching GM user: {e}")
+            return
+
+        if initial:
+            title = f"🛡️ Army Collision Detected on {hex_id}"
+            body = "Multiple armies have arrived on the same tile:\n"
+        else:
+            title = f"➕ Additional Army Joined Collision on {hex_id}"
+            body = "Updated list of armies on the tile:\n"
+
+        status_map = self.get_army_status_map()
+
+        lines = []
+        for uid in sorted(army_uids):
+            status = status_map.get(uid, "Unknown")
+            lines.append(f"- {uid} ({status})")
+
+        body += "\n".join(lines)
+
+        try:
+            await gm.send(f"**{title}**\n```{body}```")
+        except discord.errors.Forbidden:
+            print(f"Could not DM GM ({settings.GamemasterID}).")
+
+    async def notify_gm_army_departure(self, hex_id, previous_set, current_set):
+        try:
+            gm = await self.bot.fetch_user(settings.GamemasterID)
+        except Exception as e:
+            print(f"Error fetching GM user: {e}")
+            return
+
+        departed = previous_set - current_set
+        if not departed:
+            return
+
+        title = f"➖ Army Departed Collision on {hex_id}"
+        body = "Some armies have left this tile.\n\n"
+
+        status_map = self.get_army_status_map()
+
+        body += "❌ Departed:\n"
+        body += "\n".join(f"- {uid} ({status_map.get(uid, 'Unknown')})" for uid in sorted(departed))
+
+        if current_set:
+            body += "\n\n✅ Still present:\n"
+            body += "\n".join(f"- {uid} ({status_map.get(uid, 'Unknown')})" for uid in sorted(current_set))
+        else:
+            body += "\n\nAll armies have now left this tile."
+
+        try:
+            await gm.send(f"**{title}**\n```{body}```")
+        except discord.errors.Forbidden:
+            print(f"Could not DM GM ({settings.GamemasterID}).")
+
+    def get_army_status_map(self):
+        """Return a dict of Army UID -> Status from the Armies sheet."""
+        armies_df = self.local_sheet_utils.get_sheet_by_name("Armies")
+        if armies_df is None or armies_df.empty:
+            print("Warning: Could not load Armies for status lookup.")
+            return {}
+
+        armies_df['Army UID'] = armies_df['Army UID'].astype(str)
+        armies_df['Status'] = armies_df['Status'].astype(str)
+        return dict(zip(armies_df['Army UID'], armies_df['Status']))
 
 async def setup(bot):
     await bot.add_cog(MovementBackgroundController(bot))
