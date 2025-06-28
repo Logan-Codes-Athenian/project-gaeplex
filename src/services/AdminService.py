@@ -18,7 +18,7 @@ class AdminService:
             df = self.local_sheet_utils.get_sheet_by_name(sheet)
             if df is None or df.empty:
                 print(f"Error: {sheet} is empty or missing.")
-                return False
+                continue # Dataframe can be empty, so continue
 
             # 2) Prepare data list-of-lists (include header)
             payload = [df.columns.tolist()] + df.values.tolist()
@@ -27,9 +27,9 @@ class AdminService:
             ok = self.google_sheet_utils.overwrite_sheet_by_name(sheet, payload)
             if not ok:
                 print(f"Error writing to Google sheet: {sheet}")
-                return False
+                return False # Error Writing to Google Sheets is bad, so returns False.
 
-        return True
+        return True # If it reaches here, non-empty Dataframes have been written fine.
 
     def download_google_sheets(self):
         """ Pull all named Google Sheets down into local CSV files. """

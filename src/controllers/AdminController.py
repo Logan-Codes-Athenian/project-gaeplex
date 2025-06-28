@@ -45,6 +45,7 @@ class AdminController(commands.Cog):
         if success:
             await ctx.send(f"Pause Successful :)")
             await channel.send(f"```Game Paused @{strftime('%a, %d %b %Y %H:%M:%S +0000', gmtime())}```")
+            self.admin_service.update_google_sheets() # Updates Game Progress on Pause.
         else:
             await ctx.send(f"Pause Failed :(")
 
