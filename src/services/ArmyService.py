@@ -6,6 +6,7 @@ from utils.sheets.LocalSheetUtils import LocalSheetUtils
 from utils.misc.TemplateUtils import TemplateUtils
 from utils.misc.CollectionUtils import CollectionUtils
 from utils.misc.EmbedUtils import EmbedUtils
+from utils.pathfinding.PathfindingUtils import PathfindingUtils
 
 class ArmyService:
     def __init__(self, bot):
@@ -14,6 +15,8 @@ class ArmyService:
         self.template_utils = TemplateUtils()
         self.local_sheet_utils = LocalSheetUtils()
         self.embed_utils = EmbedUtils()
+        self.path_finding_utils = PathfindingUtils()
+        self.map = self.path_finding_utils.retrieve_digital_map()
 
     async def create_template_army(self, ctx): 
         template = await self.collection_utils.ask_question(
@@ -29,21 +32,37 @@ class ArmyService:
             return False
 
         army_uid = f"{random.randint(0, 1000)}_{int(time.time())}"
-
-        # Prepare data for sheet
         player = army.get("player")
-        current = army.get("current") # Get the current hex from template
+        current = army.get("current")  # This might be a hex or a holding name
+
+        # 🧭 Attempt to resolve current to a hex if it's a holding
+        current_hex = None
+        for hex_data in self.map:
+            if hex_data["Hex"] == current:
+                current_hex = current  # Already valid
+                break
+            elif hex_data.get("Holding Name", "").strip().lower() == current.strip().lower():
+                current_hex = hex_data["Hex"]
+                break
+
+        if current_hex is None:
+            await ctx.send(f"❌ Could not resolve location: `{current}` is not a valid hex ID or known holding name.")
+            return False
+
+        # Build other fields
         commanders = ', '.join(army.get("commanders")) if army.get("commanders") else "None"
         troops = ', '.join(army.get("troops")) if army.get("troops") else "None"
         navy = ', '.join(army.get("navy")) if army.get("navy") else "None"
         siege = ', '.join(army.get("siege")) if army.get("siege") else "None"
-        status = "Stationary" # Defaults to Stationary. Can be defending, moving, ambushing, raiding, besieging, disembarking, embarking
+        status = "Stationary"  # Default
 
-        # Create army in sheet and return uid for QOL
-        return self.local_sheet_utils.write_to_row(
+        # Save to sheet
+        success = self.local_sheet_utils.write_to_row(
             "Armies",
-            [army_uid, player, current, commanders, troops, navy, siege, status]
-        ), army_uid
+            [army_uid, player, current_hex, commanders, troops, navy, siege, status]
+        )
+
+        return success, army_uid
     
     def retrieve_all_armies(self):
         armies_df = self.local_sheet_utils.get_sheet_by_name("Armies")
