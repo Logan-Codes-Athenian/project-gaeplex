@@ -94,10 +94,10 @@ class PathfindingUtils:
             terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3, 
                              "Forest": 3, "Dense Forest": 4, "Snow": 3,
                              "Snowy Forest": 4, "Plains": 1, "Coast": 1, 
-                             "Island": 1}
+                             "Island": 1, "Peninsula": 1}
             return terrain_costs.get(terrain, 1)
 
-        if movement_type == "fleet" and terrain in ["Sea", "Coast", "Island"]:
+        if movement_type == "fleet" and terrain in ["Sea", "Coast", "Island", "Peninsula"]:
             return 1
         return float('inf')
 
@@ -123,9 +123,24 @@ class PathfindingUtils:
             neighbor_id = f"{neighbor_col}{neighbor_row:02d}"  # Ensure row is two digits
             
             if neighbor_id in hex_map and neighbor_id not in avoid_hexes:
-                terrain_cost = self.terrain_movement_cost(movement_type, hex_map[neighbor_id])
-                if terrain_cost != float('inf'):
-                    neighbors.append(neighbor_id)
+                neighbor_hex = hex_map[neighbor_id]
+                terrain_cost = self.terrain_movement_cost(movement_type, neighbor_hex)
+
+                if terrain_cost == float('inf'):
+                    continue
+
+                # Prevent direct fleet movement through Peninsulas
+                if movement_type == "fleet":
+                    current_terrain = hex_map[hex_id]["Terrain"]
+                    neighbor_terrain = neighbor_hex["Terrain"]
+
+                    if current_terrain == "Peninsula" or neighbor_terrain == "Peninsula":
+                        # Block fleet travel between coast/water via Peninsula
+                        if (current_terrain in ["Sea", "Coast", "Island", "Peninsula"] and 
+                            neighbor_terrain in ["Sea", "Coast", "Island", "Peninsula"]):
+                            continue  # Disallow direct hop through/into peninsula tile
+
+                neighbors.append(neighbor_id)
         
         return neighbors
 
