@@ -56,7 +56,7 @@ class MovementService:
             print("ERROR WHILE RETRIEVING PATH")
             return False
 
-        base_minutes_per_hex = self.movement_utils.get_minutes_per_hex(movement)
+        base_minutes_per_hex = self.movement_utils.get_minutes_per_hex(troops, navy, siege)
 
         # Calculate terrain mod minutes per hex
         terrain_mod_minutes_per_hex = base_minutes_per_hex * (sum(terrain_values)/len(terrain_values))
