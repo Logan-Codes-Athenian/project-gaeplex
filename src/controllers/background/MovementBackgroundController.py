@@ -95,11 +95,11 @@ class MovementBackgroundController(commands.Cog):
                     print(f"Warning: {current_hex} not found in path for movement {uid}")
                     continue
 
-                if current_index < len(path) - 1:
+                if current_index < len(path) - 2:
                     # Move to the next hex in the path.
                     current_hex = path[current_index + 1]
                     minutes_since_last_hex = 0
-                elif current_index == len(path) - 1:  # Final hex condition.
+                elif current_index == len(path) - 2:  # Final hex condition.
                     await self.complete_movement(uid)
                     return  
                     # Changed from Continue, since i would need to reload data from sheet to memory.
