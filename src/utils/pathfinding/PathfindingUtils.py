@@ -81,7 +81,7 @@ class PathfindingUtils:
         print(hex_data)
         has_road = hex_data.get("Road", False)
         has_river = hex_data.get("River", False)
-        has_holding = hex_data.get("Holding", False)
+        has_holding = hex_data.get("Holding Name", False)
         print(f"road: {has_road}, river {has_river}, holding {has_holding}")
 
         if movement_type == "army":
