@@ -381,7 +381,8 @@ class MovementBackgroundController(commands.Cog):
         # 1. Moving armies from updated_data (Movements sheet)
         for row in updated_data:
             uid = row[3]  # Army UID
-            hex_id = row[11]  # Current Hex
+            raw_hex = row[11]
+            hex_id = self.resolve_to_hex_id(raw_hex)
             hex_army_map.setdefault(hex_id, set()).add(uid)
 
         # 2. Include non-moving armies from Armies sheet
@@ -393,7 +394,7 @@ class MovementBackgroundController(commands.Cog):
 
             for _, row in armies_df.iterrows():
                 uid = row["Army UID"]
-                hex_id = row["Current Hex"]
+                hex_id = self.resolve_to_hex_id(row["Current Hex"])
                 status = row["Status"].lower()
 
                 if status not in ["moving"]:  # Only include non-moving units
@@ -490,6 +491,25 @@ class MovementBackgroundController(commands.Cog):
         armies_df['Army UID'] = armies_df['Army UID'].astype(str)
         armies_df['Status'] = armies_df['Status'].astype(str)
         return dict(zip(armies_df['Army UID'], armies_df['Status']))
+    
+    def resolve_to_hex_id(self, identifier: str) -> str:
+        """
+        Takes a string that may be a Holding Name or Hex ID and resolves it to a Hex ID.
+        """
+        identifier = identifier.strip()
+        
+        # Check if it's already a hex ID
+        for row in self.map:
+            if row["Hex"].strip() == identifier:
+                return identifier
+        
+        # Otherwise, check if it's a holding name
+        for row in self.map:
+            if row.get("Holding Name", "").strip().lower() == identifier.lower():
+                return row["Hex"].strip()
+
+        # Default: return as-is (fallback)
+        return identifier
 
 async def setup(bot):
     await bot.add_cog(MovementBackgroundController(bot))
