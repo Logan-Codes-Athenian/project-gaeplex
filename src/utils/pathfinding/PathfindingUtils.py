@@ -91,9 +91,9 @@ class PathfindingUtils:
                 return 3 if has_road or has_holding else float('inf')
             if terrain == "Sea":
                 return float('inf')
-            terrain_costs = {"Hills": 2, "Swamp": 4, "Desert": 3, 
-                             "Forest": 3, "Dense Forest": 4, "Snow": 3,
-                             "Snowy Forest": 4, "Plains": 1, "Coast": 1, 
+            terrain_costs = {"Hills": 2, "Swamp": 3, "Desert": 1, 
+                             "Forest": 2, "Dense Forest": 3, "Snow": 1,
+                             "Snowy Forest": 3, "Plains": 1, "Coast": 1, 
                              "Island": 1, "Peninsula": 1}
             return terrain_costs.get(terrain, 1)
 
