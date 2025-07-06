@@ -91,7 +91,7 @@ class PathfindingUtils:
                 return 3 if has_road or has_holding else float('inf')
             if terrain == "Sea":
                 return float('inf')
-            terrain_costs = {"Hills": 2, "Swamp": 3, "Desert": 1, 
+            terrain_costs = {"Hills": 2, "Swamp": 2, "Desert": 1, 
                              "Forest": 2, "Dense Forest": 3, "Snow": 1,
                              "Snowy Forest": 3, "Plains": 1, "Coast": 1, 
                              "Island": 1, "Peninsula": 1}
@@ -163,20 +163,26 @@ class PathfindingUtils:
                 row_part += char
         return col_part, row_part
 
-    # Convert column letters to index (e.g., A=0, B=1, ..., Z=25, AA=26, AB=27, etc.)
-    def column_to_index(self, col_part):
-        index = 0
-        for i, char in enumerate(reversed(col_part)):
-            index += (ord(char.upper()) - ord('A') + 1) * (26 ** i)
-        return index - 1  # Subtract 1 to make A=0, B=1, etc.
 
-    # Convert index to column letters (e.g., 0=A, 1=B, ..., 25=Z, 26=AA, 27=AB, etc.)
+    # TODO: These column to index and vice versa functions are very specific to the current map structure
+    # They may need to be adjusted if the map structure changes or if more columns are added, I.E. Beyond current BA, BB, BC, BD etc
+    def column_to_index(self, col_part):
+        if len(col_part) == 1:
+            return ord(col_part) - ord('A')  # A=0, B=1, ..., Z=25
+        elif len(col_part) == 2 and col_part[0] == 'B':
+            second_char = col_part[1]
+            if 'A' <= second_char <= 'D':
+                return 26 + (ord(second_char) - ord('A'))  # BA=26, BB=27, BC=28, BD=29
+        return -1  # Invalid column
+
     def index_to_column(self, index):
-        col_part = ''
-        while index >= 0:
-            col_part = chr(ord('A') + (index % 26)) + col_part
-            index = (index // 26) - 1
-        return col_part
+        if index < 0:
+            return None
+        if index < 26:
+            return chr(ord('A') + index)  # 0-25 -> A-Z
+        elif index <= 29:  # 26-29
+            return "B" + chr(ord('A') + (index - 26))  # BA, BB, BC, BD
+        return None  # Invalid index
 
     def retrieve_movement_path(self, movement_type, start, goal, avoid):
         hexes = self.retrieve_digital_map()
@@ -206,7 +212,7 @@ class PathfindingUtils:
         if not start_hex or not goal_hex:
             print("Invalid start or goal Hex or Holding Name.")
             return None, None
-
+        
         path, terrain_values = self.a_star(movement_type.lower(), start_hex, goal_hex, hexes, avoid_hexes)
 
         if path:
