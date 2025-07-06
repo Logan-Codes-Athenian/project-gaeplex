@@ -10,6 +10,7 @@ import time
 import re
 import random
 import pandas as pd
+import math
 
 class MovementService:
     def __init__(self, bot):
@@ -90,14 +91,27 @@ class MovementService:
                 print(f"Error fetching channel: {e}")
                 return False
         
+        # Calculate total minutes and round up
         total_minutes = (len(path) - 1) * terrain_mod_minutes_per_hex
-        message = movement.get("departure")
-        if message == "None":
-            # Compare navy as a list, not as a string.
-            naval_movement = False if navy == ["nan"] else True
-            await channel.send(f"- {'Ships' if naval_movement else 'Men'} depart {origin} || UID: {uid}, ETC: {total_minutes} minutes ||")
+        rounded_minutes = math.ceil(total_minutes)  # Round up to nearest whole minute
+        
+        # Format time as hours and minutes if 60+ minutes
+        if rounded_minutes >= 60:
+            hours = rounded_minutes // 60
+            minutes = rounded_minutes % 60
+            time_str = f"{hours} hour{'s' if hours > 1 else ''} {minutes} minute{'s' if minutes != 1 else ''}"
         else:
-            await channel.send(f"- {message} || UID: {uid}, ETC: {total_minutes} minutes ||")
+            time_str = f"{rounded_minutes} minute{'s' if rounded_minutes != 1 else ''}"
+        
+        message = movement.get("departure")
+        naval_movement = False if navy == ["nan"] else True
+        
+        if message == "None":
+            announcement = f"- {'Ships' if naval_movement else 'Men'} depart {origin} || UID: {uid}, ETC: {time_str} ||"
+        else:
+            announcement = f"- {message} || UID: {uid}, ETC: {time_str} ||"
+        
+        await channel.send(announcement)
 
         try:
             user_id = int(re.sub(r'[^\d]', '', movement.get("player")))
